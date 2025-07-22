@@ -62,10 +62,10 @@ public actor DeviceContext {
         var context: [String: any Sendable] = [:]
 
         // Basic device information
-        context["device_type"] = getDeviceType().rawValue
+        context["device_type"] = await getDeviceType().rawValue
         context["operating_system"] = getOperatingSystem().rawValue
         context["os_version"] = getOSVersion()
-        context["device_model"] = getDeviceModel()
+        context["device_model"] = await getDeviceModel()
 
         // App information
         context["app_version"] = getAppVersion()
@@ -73,7 +73,7 @@ public actor DeviceContext {
         context["app_bundle_id"] = getBundleIdentifier()
 
         // Screen information
-        if let screenInfo = getScreenInfo() {
+        if let screenInfo = await getScreenInfo() {
             for (key, value) in screenInfo {
                 context[key] = value
             }
@@ -99,7 +99,7 @@ public actor DeviceContext {
 
         // Battery information (iOS only)
         #if os(iOS) || os(visionOS)
-        if let batteryInfo = getBatteryInfo() {
+        if let batteryInfo = await getBatteryInfo() {
             for (key, value) in batteryInfo {
                 context[key] = value
             }
@@ -111,52 +111,16 @@ public actor DeviceContext {
         context["timezone"] = getTimezone()
 
         // App state
-        context["app_state"] = getAppState()
+        context["app_state"] = await getAppState()
 
         return context
     }
 
     // MARK: - Device Type Detection
 
-    private func getDeviceType() -> DeviceType {
+    private func getDeviceType() async -> DeviceType {
         #if os(iOS)
-        if Thread.isMainThread {
-            switch UIDevice.current.userInterfaceIdiom {
-            case .phone:
-                return .mobile
-            case .pad:
-                return .tablet
-            case .tv:
-                return .tv
-            case .carPlay:
-                return .mobile
-            case .mac:
-                return .desktop
-            case .vision:
-                return .vr
-            @unknown default:
-                return .mobile
-            }
-        } else {
-            return DispatchQueue.main.sync {
-                switch UIDevice.current.userInterfaceIdiom {
-                case .phone:
-                    return .mobile
-                case .pad:
-                    return .tablet
-                case .tv:
-                    return .tv
-                case .carPlay:
-                    return .mobile
-                case .mac:
-                    return .desktop
-                case .vision:
-                    return .vr
-                @unknown default:
-                    return .mobile
-                }
-            }
-        }
+        return await getIOSDeviceType()
         #elseif os(visionOS)
         return .vr
         #elseif os(tvOS)
@@ -169,6 +133,28 @@ public actor DeviceContext {
         return .unknown
         #endif
     }
+
+    #if os(iOS)
+    @MainActor
+    private func getIOSDeviceType() -> DeviceType {
+        switch UIDevice.current.userInterfaceIdiom {
+        case .phone:
+            return .mobile
+        case .pad:
+            return .tablet
+        case .tv:
+            return .tv
+        case .carPlay:
+            return .mobile
+        case .mac:
+            return .desktop
+        case .vision:
+            return .vr
+        @unknown default:
+            return .mobile
+        }
+    }
+    #endif
 
     private func getOperatingSystem() -> OSType {
         #if os(iOS)
@@ -192,21 +178,22 @@ public actor DeviceContext {
         return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
     }
 
-    private func getDeviceModel() -> String {
+    private func getDeviceModel() async -> String {
         #if os(iOS) || os(visionOS)
-        if Thread.isMainThread {
-            return UIDevice.current.model
-        } else {
-            return DispatchQueue.main.sync {
-                UIDevice.current.model
-            }
-        }
+        return await getIOSDeviceModel()
         #elseif os(macOS)
         return getMacModel()
         #else
         return "Unknown"
         #endif
     }
+
+    #if os(iOS) || os(visionOS)
+    @MainActor
+    private func getIOSDeviceModel() -> String {
+        return UIDevice.current.model
+    }
+    #endif
 
     #if os(macOS)
     private func getMacModel() -> String {
@@ -241,35 +228,9 @@ public actor DeviceContext {
 
     // MARK: - Screen Information
 
-    private func getScreenInfo() -> [String: any Sendable]? {
+    private func getScreenInfo() async -> [String: any Sendable]? {
         #if os(iOS) || os(visionOS)
-        if Thread.isMainThread {
-            let screen = UIScreen.main
-            let bounds = screen.bounds
-            let scale = screen.scale
-
-            return [
-                "screen_width": Int(bounds.width * scale),
-                "screen_height": Int(bounds.height * scale),
-                "screen_scale": scale,
-                "screen_logical_width": Int(bounds.width),
-                "screen_logical_height": Int(bounds.height)
-            ]
-        } else {
-            return DispatchQueue.main.sync {
-                let screen = UIScreen.main
-                let bounds = screen.bounds
-                let scale = screen.scale
-
-                return [
-                    "screen_width": Int(bounds.width * scale),
-                    "screen_height": Int(bounds.height * scale),
-                    "screen_scale": scale,
-                    "screen_logical_width": Int(bounds.width),
-                    "screen_logical_height": Int(bounds.height)
-                ]
-            }
-        }
+        return await getIOSScreenInfo()
         #elseif os(macOS)
         guard let screen = NSScreen.main else { return nil }
         let frame = screen.frame
@@ -286,6 +247,23 @@ public actor DeviceContext {
         return nil
         #endif
     }
+
+    #if os(iOS) || os(visionOS)
+    @MainActor
+    private func getIOSScreenInfo() -> [String: any Sendable] {
+        let screen = UIScreen.main
+        let bounds = screen.bounds
+        let scale = screen.scale
+
+        return [
+            "screen_width": Int(bounds.width * scale),
+            "screen_height": Int(bounds.height * scale),
+            "screen_scale": scale,
+            "screen_logical_width": Int(bounds.width),
+            "screen_logical_height": Int(bounds.height)
+        ]
+    }
+    #endif
 
     // MARK: - Memory Information
 
@@ -389,62 +367,33 @@ public actor DeviceContext {
     // MARK: - Battery Information (iOS only)
 
     #if os(iOS) || os(visionOS)
-    private func getBatteryInfo() -> [String: any Sendable]? {
-        if Thread.isMainThread {
-            let device = UIDevice.current
-            device.isBatteryMonitoringEnabled = true
+    @MainActor
+    private func getBatteryInfo() async -> [String: any Sendable]? {
+        let device = UIDevice.current
+        device.isBatteryMonitoringEnabled = true
 
-            guard device.batteryState != .unknown else {
-                return nil
-            }
-
-            var batteryInfo: [String: any Sendable] = [:]
-
-            batteryInfo["battery_level"] = device.batteryLevel
-
-            switch device.batteryState {
-            case .unknown:
-                batteryInfo["battery_state"] = "unknown"
-            case .unplugged:
-                batteryInfo["battery_state"] = "unplugged"
-            case .charging:
-                batteryInfo["battery_state"] = "charging"
-            case .full:
-                batteryInfo["battery_state"] = "full"
-            @unknown default:
-                batteryInfo["battery_state"] = "unknown"
-            }
-
-            return batteryInfo
-        } else {
-            return DispatchQueue.main.sync {
-                let device = UIDevice.current
-                device.isBatteryMonitoringEnabled = true
-
-                guard device.batteryState != .unknown else {
-                    return nil
-                }
-
-                var batteryInfo: [String: any Sendable] = [:]
-
-                batteryInfo["battery_level"] = device.batteryLevel
-
-                switch device.batteryState {
-                case .unknown:
-                    batteryInfo["battery_state"] = "unknown"
-                case .unplugged:
-                    batteryInfo["battery_state"] = "unplugged"
-                case .charging:
-                    batteryInfo["battery_state"] = "charging"
-                case .full:
-                    batteryInfo["battery_state"] = "full"
-                @unknown default:
-                    batteryInfo["battery_state"] = "unknown"
-                }
-
-                return batteryInfo
-            }
+        guard device.batteryState != .unknown else {
+            return nil
         }
+
+        var batteryInfo: [String: any Sendable] = [:]
+
+        batteryInfo["battery_level"] = device.batteryLevel
+
+        switch device.batteryState {
+        case .unknown:
+            batteryInfo["battery_state"] = "unknown"
+        case .unplugged:
+            batteryInfo["battery_state"] = "unplugged"
+        case .charging:
+            batteryInfo["battery_state"] = "charging"
+        case .full:
+            batteryInfo["battery_state"] = "full"
+        @unknown default:
+            batteryInfo["battery_state"] = "unknown"
+        }
+
+        return batteryInfo
     }
     #endif
 
@@ -460,39 +409,31 @@ public actor DeviceContext {
 
     // MARK: - App State
 
-    private func getAppState() -> String {
+    private func getAppState() async -> String {
         #if os(iOS) || os(visionOS)
-        if Thread.isMainThread {
-            switch UIApplication.shared.applicationState {
-            case .active:
-                return "active"
-            case .inactive:
-                return "inactive"
-            case .background:
-                return "background"
-            @unknown default:
-                return "unknown"
-            }
-        } else {
-            return DispatchQueue.main.sync {
-                switch UIApplication.shared.applicationState {
-                case .active:
-                    return "active"
-                case .inactive:
-                    return "inactive"
-                case .background:
-                    return "background"
-                @unknown default:
-                    return "unknown"
-                }
-            }
-        }
+        return await getIOSAppState()
         #elseif os(macOS)
         return "unknown" // Cannot access NSApplication.shared from non-main actor
         #else
         return "unknown"
         #endif
     }
+
+    #if os(iOS) || os(visionOS)
+    @MainActor
+    private func getIOSAppState() -> String {
+        switch UIApplication.shared.applicationState {
+        case .active:
+            return "active"
+        case .inactive:
+            return "inactive"
+        case .background:
+            return "background"
+        @unknown default:
+            return "unknown"
+        }
+    }
+    #endif
 }
 
 // MARK: - Extensions
@@ -500,9 +441,9 @@ public actor DeviceContext {
 extension DeviceContext {
 
     /// Get a minimal device context for performance-critical scenarios
-    public func getMinimalContext() -> [String: any Sendable] {
+    public func getMinimalContext() async -> [String: any Sendable] {
         return [
-            "device_type": getDeviceType().rawValue,
+            "device_type": await getDeviceType().rawValue,
             "operating_system": getOperatingSystem().rawValue,
             "os_version": getOSVersion(),
             "app_version": getAppVersion()

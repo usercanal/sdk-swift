@@ -32,11 +32,13 @@ public struct Version: Sendable {
     // MARK: - Runtime Information
 
     /// Current device/platform information
+    @MainActor
     public static var platformInfo: PlatformInfo {
         PlatformInfo()
     }
 
     /// Complete version information
+    @MainActor
     public static var info: VersionInfo {
         VersionInfo(
             version: version,
@@ -49,6 +51,7 @@ public struct Version: Sendable {
     }
 
     /// User agent string for network requests
+    @MainActor
     public static var userAgent: String {
         let platform = platformInfo
         return "usercanal-swift-sdk/\(version) (\(platform.osName) \(platform.osVersion); \(platform.deviceModel)) Swift/\(swiftVersion)"
@@ -74,6 +77,7 @@ public struct PlatformInfo: Sendable, Codable {
     public let deviceModel: String
     public let architecture: String
 
+    @MainActor
     public init() {
         #if os(iOS)
         self.osName = "iOS"
@@ -89,13 +93,7 @@ public struct PlatformInfo: Sendable, Codable {
         self.osVersion = processInfo.operatingSystemVersionString
 
         #if os(iOS) || os(visionOS)
-        if Thread.isMainThread {
-            self.deviceModel = UIDevice.current.model
-        } else {
-            self.deviceModel = DispatchQueue.main.sync {
-                UIDevice.current.model
-            }
-        }
+        self.deviceModel = UIDevice.current.model
         #elseif os(macOS)
         self.deviceModel = "Mac"
         #else
