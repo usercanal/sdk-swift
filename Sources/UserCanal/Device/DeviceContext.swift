@@ -16,19 +16,19 @@ import Network
 
 /// Device context collection for automatic enrichment of events
 public actor DeviceContext {
-    
+
     // MARK: - Cached Context
-    
+
     private var cachedContext: [String: any Sendable]?
     private var lastUpdateTime: Date?
     private let cacheInterval: TimeInterval = 300 // 5 minutes
-    
+
     // MARK: - Initialization
-    
+
     public init() {}
-    
+
     // MARK: - Public Interface
-    
+
     /// Get current device context as properties
     /// - Returns: Dictionary of device context properties
     public func getContext() async -> [String: any Sendable] {
@@ -38,65 +38,65 @@ public actor DeviceContext {
            Date().timeIntervalSince(lastUpdate) < cacheInterval {
             return cached
         }
-        
+
         // Collect fresh context
         let context = await collectDeviceContext()
-        
+
         // Cache the result
         cachedContext = context
         lastUpdateTime = Date()
-        
+
         return context
     }
-    
+
     /// Force refresh of device context cache
     public func refreshContext() async {
         cachedContext = nil
         lastUpdateTime = nil
         _ = await getContext()
     }
-    
+
     // MARK: - Context Collection
-    
+
     private func collectDeviceContext() async -> [String: any Sendable] {
         var context: [String: any Sendable] = [:]
-        
+
         // Basic device information
         context["device_type"] = getDeviceType().rawValue
         context["operating_system"] = getOperatingSystem().rawValue
         context["os_version"] = getOSVersion()
         context["device_model"] = getDeviceModel()
-        
+
         // App information
         context["app_version"] = getAppVersion()
         context["app_build"] = getAppBuild()
         context["app_bundle_id"] = getBundleIdentifier()
-        
+
         // Screen information
         if let screenInfo = getScreenInfo() {
             for (key, value) in screenInfo {
                 context[key] = value
             }
         }
-        
+
         // Memory information
         context["memory_total"] = getTotalMemory()
         context["memory_available"] = getAvailableMemory()
-        
+
         // Storage information
         if let storageInfo = getStorageInfo() {
             for (key, value) in storageInfo {
                 context[key] = value
             }
         }
-        
+
         // Network information
         if let networkInfo = await getNetworkInfo() {
             for (key, value) in networkInfo {
                 context[key] = value
             }
         }
-        
+
         // Battery information (iOS only)
         #if os(iOS) || os(visionOS)
         if let batteryInfo = getBatteryInfo() {
@@ -105,50 +105,71 @@ public actor DeviceContext {
             }
         }
         #endif
-        
+
         // Locale and timezone
         context["locale"] = getLocale()
         context["timezone"] = getTimezone()
-        
+
         // App state
         context["app_state"] = getAppState()
-        
+
         return context
     }
-    
+
     // MARK: - Device Type Detection
-    
+
     private func getDeviceType() -> DeviceType {
         #if os(iOS)
-        switch UIDevice.current.userInterfaceIdiom {
-        case .phone:
-            return .mobile
-        case .pad:
-            return .tablet
-        case .tv:
-            return .tv
-        case .carPlay:
-            return .unknown
-        case .mac:
-            return .desktop
-        case .vision:
-            return .vr
-        @unknown default:
-            return .unknown
+        if Thread.isMainThread {
+            switch UIDevice.current.userInterfaceIdiom {
+            case .phone:
+                return .mobile
+            case .pad:
+                return .tablet
+            case .tv:
+                return .tv
+            case .carPlay:
+                return .mobile
+            case .mac:
+                return .desktop
+            case .vision:
+                return .vr
+            @unknown default:
+                return .mobile
+            }
+        } else {
+            return DispatchQueue.main.sync {
+                switch UIDevice.current.userInterfaceIdiom {
+                case .phone:
+                    return .mobile
+                case .pad:
+                    return .tablet
+                case .tv:
+                    return .tv
+                case .carPlay:
+                    return .mobile
+                case .mac:
+                    return .desktop
+                case .vision:
+                    return .vr
+                @unknown default:
+                    return .mobile
+                }
+            }
         }
         #elseif os(visionOS)
         return .vr
-        #elseif os(macOS)
-        return .desktop
-        #elseif os(watchOS)
-        return .watch
         #elseif os(tvOS)
         return .tv
+        #elseif os(watchOS)
+        return .watch
+        #elseif os(macOS)
+        return .desktop
         #else
         return .unknown
         #endif
     }
-    
+
     private func getOperatingSystem() -> OSType {
         #if os(iOS)
         return .iOS
@@ -164,23 +185,29 @@ public actor DeviceContext {
         return .unknown
         #endif
     }
-    
+
     private func getOSVersion() -> String {
         let processInfo = ProcessInfo.processInfo
         let version = processInfo.operatingSystemVersion
         return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
     }
-    
+
     private func getDeviceModel() -> String {
         #if os(iOS) || os(visionOS)
-        return UIDevice.current.model
+        if Thread.isMainThread {
+            return UIDevice.current.model
+        } else {
+            return DispatchQueue.main.sync {
+                UIDevice.current.model
+            }
+        }
         #elseif os(macOS)
         return getMacModel()
         #else
         return "Unknown"
         #endif
     }
-    
+
     #if os(macOS)
     private func getMacModel() -> String {
         var size = 0
@@ -197,63 +224,79 @@ public actor DeviceContext {
         }
     }
     #endif
-    
+
     // MARK: - App Information
-    
+
     private func getAppVersion() -> String {
         return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
-    
+
     private func getAppBuild() -> String {
         return Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
     }
-    
+
     private func getBundleIdentifier() -> String {
         return Bundle.main.bundleIdentifier ?? "Unknown"
     }
-    
+
     // MARK: - Screen Information
-    
+
     private func getScreenInfo() -> [String: any Sendable]? {
         #if os(iOS) || os(visionOS)
-        let screen = UIScreen.main
-        let bounds = screen.bounds
-        let scale = screen.scale
-        
-        return [
-            "screen_width": Int(bounds.width * scale),
-            "screen_height": Int(bounds.height * scale),
-            "screen_scale": scale,
-            "screen_points_width": Int(bounds.width),
-            "screen_points_height": Int(bounds.height)
-        ]
+        if Thread.isMainThread {
+            let screen = UIScreen.main
+            let bounds = screen.bounds
+            let scale = screen.scale
+
+            return [
+                "screen_width": Int(bounds.width * scale),
+                "screen_height": Int(bounds.height * scale),
+                "screen_scale": scale,
+                "screen_logical_width": Int(bounds.width),
+                "screen_logical_height": Int(bounds.height)
+            ]
+        } else {
+            return DispatchQueue.main.sync {
+                let screen = UIScreen.main
+                let bounds = screen.bounds
+                let scale = screen.scale
+
+                return [
+                    "screen_width": Int(bounds.width * scale),
+                    "screen_height": Int(bounds.height * scale),
+                    "screen_scale": scale,
+                    "screen_logical_width": Int(bounds.width),
+                    "screen_logical_height": Int(bounds.height)
+                ]
+            }
+        }
         #elseif os(macOS)
         guard let screen = NSScreen.main else { return nil }
         let frame = screen.frame
         let backingScaleFactor = screen.backingScaleFactor
-        
+
         return [
             "screen_width": Int(frame.width * backingScaleFactor),
             "screen_height": Int(frame.height * backingScaleFactor),
             "screen_scale": backingScaleFactor,
-            "screen_points_width": Int(frame.width),
-            "screen_points_height": Int(frame.height)
+            "screen_logical_width": Int(frame.width),
+            "screen_logical_height": Int(frame.height)
         ]
         #else
         return nil
         #endif
     }
-    
+
     // MARK: - Memory Information
-    
+
     private func getTotalMemory() -> Int64 {
         return Int64(ProcessInfo.processInfo.physicalMemory)
     }
-    
+
     private func getAvailableMemory() -> Int64 {
         var info = mach_task_basic_info()
         var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
-        
+
         let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
                 task_info(mach_task_self_,
@@ -262,57 +305,57 @@ public actor DeviceContext {
                          &count)
             }
         }
-        
+
         if kerr == KERN_SUCCESS {
             return Int64(info.resident_size)
         } else {
             return 0
         }
     }
-    
+
     // MARK: - Storage Information
-    
+
     private func getStorageInfo() -> [String: any Sendable]? {
-        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, 
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory,
                                                           in: .userDomainMask).first else {
             return nil
         }
-        
+
         do {
             let values = try documentsPath.resourceValues(forKeys: [
                 .volumeAvailableCapacityKey,
                 .volumeTotalCapacityKey
             ])
-            
+
             var storageInfo: [String: any Sendable] = [:]
-            
+
             if let available = values.volumeAvailableCapacity {
                 storageInfo["storage_available"] = available
             }
-            
+
             if let total = values.volumeTotalCapacity {
                 storageInfo["storage_total"] = total
             }
-            
+
             return storageInfo
         } catch {
             return nil
         }
     }
-    
+
     // MARK: - Network Information
-    
+
     private func getNetworkInfo() async -> [String: any Sendable]? {
         #if canImport(Network)
         let monitor = NWPathMonitor()
         let queue = DispatchQueue(label: "network_monitor")
-        
+
         return await withCheckedContinuation { continuation in
             monitor.pathUpdateHandler = { path in
                 var networkInfo: [String: any Sendable] = [:]
-                
+
                 networkInfo["network_available"] = path.status == .satisfied
-                
+
                 if path.usesInterfaceType(.wifi) {
                     networkInfo["network_type"] = "wifi"
                 } else if path.usesInterfaceType(.cellular) {
@@ -322,16 +365,16 @@ public actor DeviceContext {
                 } else {
                     networkInfo["network_type"] = "unknown"
                 }
-                
+
                 networkInfo["network_expensive"] = path.isExpensive
                 networkInfo["network_constrained"] = path.isConstrained
-                
+
                 monitor.cancel()
                 continuation.resume(returning: networkInfo)
             }
-            
+
             monitor.start(queue: queue)
-            
+
             // Timeout after 2 seconds
             DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
                 monitor.cancel()
@@ -342,62 +385,107 @@ public actor DeviceContext {
         return nil
         #endif
     }
-    
+
     // MARK: - Battery Information (iOS only)
-    
+
     #if os(iOS) || os(visionOS)
     private func getBatteryInfo() -> [String: any Sendable]? {
-        let device = UIDevice.current
-        device.isBatteryMonitoringEnabled = true
-        
-        guard device.batteryState != .unknown else {
-            return nil
+        if Thread.isMainThread {
+            let device = UIDevice.current
+            device.isBatteryMonitoringEnabled = true
+
+            guard device.batteryState != .unknown else {
+                return nil
+            }
+
+            var batteryInfo: [String: any Sendable] = [:]
+
+            batteryInfo["battery_level"] = device.batteryLevel
+
+            switch device.batteryState {
+            case .unknown:
+                batteryInfo["battery_state"] = "unknown"
+            case .unplugged:
+                batteryInfo["battery_state"] = "unplugged"
+            case .charging:
+                batteryInfo["battery_state"] = "charging"
+            case .full:
+                batteryInfo["battery_state"] = "full"
+            @unknown default:
+                batteryInfo["battery_state"] = "unknown"
+            }
+
+            return batteryInfo
+        } else {
+            return DispatchQueue.main.sync {
+                let device = UIDevice.current
+                device.isBatteryMonitoringEnabled = true
+
+                guard device.batteryState != .unknown else {
+                    return nil
+                }
+
+                var batteryInfo: [String: any Sendable] = [:]
+
+                batteryInfo["battery_level"] = device.batteryLevel
+
+                switch device.batteryState {
+                case .unknown:
+                    batteryInfo["battery_state"] = "unknown"
+                case .unplugged:
+                    batteryInfo["battery_state"] = "unplugged"
+                case .charging:
+                    batteryInfo["battery_state"] = "charging"
+                case .full:
+                    batteryInfo["battery_state"] = "full"
+                @unknown default:
+                    batteryInfo["battery_state"] = "unknown"
+                }
+
+                return batteryInfo
+            }
         }
-        
-        var batteryInfo: [String: any Sendable] = [:]
-        
-        batteryInfo["battery_level"] = device.batteryLevel
-        
-        switch device.batteryState {
-        case .unknown:
-            batteryInfo["battery_state"] = "unknown"
-        case .unplugged:
-            batteryInfo["battery_state"] = "unplugged"
-        case .charging:
-            batteryInfo["battery_state"] = "charging"
-        case .full:
-            batteryInfo["battery_state"] = "full"
-        @unknown default:
-            batteryInfo["battery_state"] = "unknown"
-        }
-        
-        return batteryInfo
     }
     #endif
-    
+
     // MARK: - Locale and Timezone
-    
+
     private func getLocale() -> String {
         return Locale.current.identifier
     }
-    
+
     private func getTimezone() -> String {
         return TimeZone.current.identifier
     }
-    
+
     // MARK: - App State
-    
+
     private func getAppState() -> String {
         #if os(iOS) || os(visionOS)
-        switch UIApplication.shared.applicationState {
-        case .active:
-            return "active"
-        case .inactive:
-            return "inactive"
-        case .background:
-            return "background"
-        @unknown default:
-            return "unknown"
+        if Thread.isMainThread {
+            switch UIApplication.shared.applicationState {
+            case .active:
+                return "active"
+            case .inactive:
+                return "inactive"
+            case .background:
+                return "background"
+            @unknown default:
+                return "unknown"
+            }
+        } else {
+            return DispatchQueue.main.sync {
+                switch UIApplication.shared.applicationState {
+                case .active:
+                    return "active"
+                case .inactive:
+                    return "inactive"
+                case .background:
+                    return "background"
+                @unknown default:
+                    return "unknown"
+                }
+            }
         }
         #elseif os(macOS)
         return "unknown" // Cannot access NSApplication.shared from non-main actor
@@ -410,7 +498,7 @@ public actor DeviceContext {
 // MARK: - Extensions
 
 extension DeviceContext {
-    
+
     /// Get a minimal device context for performance-critical scenarios
     public func getMinimalContext() -> [String: any Sendable] {
         return [
@@ -420,11 +508,11 @@ extension DeviceContext {
             "app_version": getAppVersion()
         ]
     }
-    
+
     /// Check if device context has changed since last collection
     public func hasContextChanged() async -> Bool {
         guard let lastUpdate = lastUpdateTime else { return true }
-        
+
         // Consider context changed if cache is older than interval
         return Date().timeIntervalSince(lastUpdate) >= cacheInterval
     }
