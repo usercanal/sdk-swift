@@ -329,7 +329,16 @@ public actor DeviceContext {
         let queue = DispatchQueue(label: "network_monitor")
 
         return await withCheckedContinuation { continuation in
+            var hasResumed = false
+            let resumeLock = NSLock()
+
             monitor.pathUpdateHandler = { path in
+                resumeLock.lock()
+                defer { resumeLock.unlock() }
+
+                guard !hasResumed else { return }
+                hasResumed = true
+
                 var networkInfo: [String: any Sendable] = [:]
 
                 networkInfo["network_available"] = path.status == .satisfied
@@ -355,6 +364,12 @@ public actor DeviceContext {
 
             // Timeout after 2 seconds
             DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
+                resumeLock.lock()
+                defer { resumeLock.unlock() }
+
+                guard !hasResumed else { return }
+                hasResumed = true
+
                 monitor.cancel()
                 continuation.resume(returning: nil)
             }
