@@ -329,16 +329,25 @@ public actor DeviceContext {
         let queue = DispatchQueue(label: "network_monitor")
 
         return await withCheckedContinuation { continuation in
-            var hasResumed = false
-            let resumeLock = NSLock()
+            let resumeOnce = {
+                monitor.cancel()
+                continuation.resume(returning: $0)
+            }
+
+            var didResume = false
+            let lock = NSLock()
+
+            let safeResume: ([String: any Sendable]?) -> Void = { result in
+                lock.lock()
+                defer { lock.unlock() }
+
+                if !didResume {
+                    didResume = true
+                    resumeOnce(result)
+                }
+            }
 
             monitor.pathUpdateHandler = { path in
-                resumeLock.lock()
-                defer { resumeLock.unlock() }
-
-                guard !hasResumed else { return }
-                hasResumed = true
-
                 var networkInfo: [String: any Sendable] = [:]
 
                 networkInfo["network_available"] = path.status == .satisfied
@@ -356,22 +365,14 @@ public actor DeviceContext {
                 networkInfo["network_expensive"] = path.isExpensive
                 networkInfo["network_constrained"] = path.isConstrained
 
-                monitor.cancel()
-                continuation.resume(returning: networkInfo)
+                safeResume(networkInfo)
             }
 
             monitor.start(queue: queue)
 
             // Timeout after 2 seconds
             DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
-                resumeLock.lock()
-                defer { resumeLock.unlock() }
-
-                guard !hasResumed else { return }
-                hasResumed = true
-
-                monitor.cancel()
-                continuation.resume(returning: nil)
+                safeResume(nil)
             }
         }
         #else
