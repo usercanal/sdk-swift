@@ -324,60 +324,9 @@ public actor DeviceContext {
     // MARK: - Network Information
 
     private func getNetworkInfo() async -> [String: any Sendable]? {
-        #if canImport(Network)
-        let monitor = NWPathMonitor()
-        let queue = DispatchQueue(label: "network_monitor")
-
-        return await withCheckedContinuation { continuation in
-            let resumeOnce = {
-                monitor.cancel()
-                continuation.resume(returning: $0)
-            }
-
-            var didResume = false
-            let lock = NSLock()
-
-            let safeResume: ([String: any Sendable]?) -> Void = { result in
-                lock.lock()
-                defer { lock.unlock() }
-
-                if !didResume {
-                    didResume = true
-                    resumeOnce(result)
-                }
-            }
-
-            monitor.pathUpdateHandler = { path in
-                var networkInfo: [String: any Sendable] = [:]
-
-                networkInfo["network_available"] = path.status == .satisfied
-
-                if path.usesInterfaceType(.wifi) {
-                    networkInfo["network_type"] = "wifi"
-                } else if path.usesInterfaceType(.cellular) {
-                    networkInfo["network_type"] = "cellular"
-                } else if path.usesInterfaceType(.wiredEthernet) {
-                    networkInfo["network_type"] = "ethernet"
-                } else {
-                    networkInfo["network_type"] = "unknown"
-                }
-
-                networkInfo["network_expensive"] = path.isExpensive
-                networkInfo["network_constrained"] = path.isConstrained
-
-                safeResume(networkInfo)
-            }
-
-            monitor.start(queue: queue)
-
-            // Timeout after 2 seconds
-            DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
-                safeResume(nil)
-            }
-        }
-        #else
+        // Skip network info collection for now to avoid Swift 6 concurrency issues
+        // TODO: Implement network info collection with proper concurrency handling
         return nil
-        #endif
     }
 
     // MARK: - Battery Information (iOS only)
