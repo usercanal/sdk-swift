@@ -7,6 +7,8 @@
 import Foundation
 import FlatBuffers
 
+// Generated FlatBuffers classes are in the same module
+
 // MARK: - Schema Types (matching Go SDK)
 
 /// Schema types for routing and streaming (matches common.fbs)
@@ -79,19 +81,34 @@ public struct FlatBuffersProtocol {
         let apiKeyVector = builder.createVector(bytes: apiKey)
         let dataVector = builder.createVector(bytes: data)
 
-        // Build Batch table (field IDs match common.fbs)
-        let batchStart = builder.startTable(with: 4)
-        builder.add(offset: apiKeyVector, at: 0)     // api_key (id: 0)
-        builder.add(element: batchID, at: 1)         // batch_id (id: 1)
-        builder.add(element: schemaType.rawValue, at: 2) // schema_type (id: 2)
-        builder.add(offset: dataVector, at: 3)       // data (id: 3)
-        let batch = builder.endTable(at: batchStart)
+        // Convert SchemaType to the generated schema type
+        let schemaTypeGenerated: schema_common_SchemaType
+        switch schemaType {
+        case .unknown:
+            schemaTypeGenerated = .unknown
+        case .event:
+            schemaTypeGenerated = .event
+        case .log:
+            schemaTypeGenerated = .log
+        case .metric:
+            schemaTypeGenerated = .metric
+        case .inventory:
+            schemaTypeGenerated = .inventory
+        }
 
-        builder.finish(offset: Offset(offset: batch))
+        // Use generated FlatBuffers functions (like Go SDK)
+        let batch = schema_common_Batch.createBatch(
+            &builder,
+            apiKeyVectorOffset: apiKeyVector,
+            batchId: batchID,
+            schemaType: schemaTypeGenerated,
+            dataVectorOffset: dataVector
+        )
 
-        // Extract data from ByteBuffer safely
-        let buffer = builder.sizedBuffer
-        let result = buffer.data
+        builder.finish(offset: batch)
+
+        // Extract data from ByteBuffer using new API
+        let result = Data(builder.sizedByteArray)
 
         // Validate batch size
         guard result.count <= maxBatchSize else {
@@ -115,6 +132,23 @@ public struct FlatBuffersProtocol {
             // Determine event type based on properties or name
             let eventType = determineEventType(for: event)
 
+            // Convert to generated event type
+            let eventTypeGenerated: schema_event_EventType
+            switch eventType {
+            case .unknown:
+                eventTypeGenerated = .unknown
+            case .track:
+                eventTypeGenerated = .track
+            case .identify:
+                eventTypeGenerated = .identify
+            case .group:
+                eventTypeGenerated = .group
+            case .alias:
+                eventTypeGenerated = .alias
+            case .enrich:
+                eventTypeGenerated = .enrich
+            }
+
             // Serialize event payload (properties + metadata as JSON)
             let payload = try serializeEventPayload(event)
             let payloadVector = builder.createVector(bytes: payload)
@@ -126,30 +160,31 @@ public struct FlatBuffersProtocol {
             // Convert timestamp to milliseconds
             let timestampMs = UInt64(event.timestamp.timeIntervalSince1970 * 1000)
 
-            // Build Event table (field IDs match event.fbs)
-            let eventStart = builder.startTable(with: 4)
-            builder.add(element: timestampMs, at: 0)      // timestamp (id: 0)
-            builder.add(element: eventType.rawValue, at: 1) // event_type (id: 1)
-            builder.add(offset: userIDVector, at: 2)      // user_id (id: 2)
-            builder.add(offset: payloadVector, at: 3)     // payload (id: 3)
-            let eventOffset = builder.endTable(at: eventStart)
+            // Use generated FlatBuffers functions for Event
+            let eventOffset = schema_event_Event.createEvent(
+                &builder,
+                timestamp: timestampMs,
+                eventType: eventTypeGenerated,
+                userIdVectorOffset: userIDVector,
+                payloadVectorOffset: payloadVector
+            )
 
-            eventOffsets.append(Offset(offset: eventOffset))
+            eventOffsets.append(eventOffset)
         }
 
         // Create events vector
         let eventsVector = builder.createVector(ofOffsets: eventOffsets)
 
-        // Build EventData table
-        let eventDataStart = builder.startTable(with: 1)
-        builder.add(offset: eventsVector, at: 0) // events (required)
-        let eventData = builder.endTable(at: eventDataStart)
+        // Use generated FlatBuffers functions for EventData
+        let eventData = schema_event_EventData.createEventData(
+            &builder,
+            eventsVectorOffset: eventsVector
+        )
 
-        builder.finish(offset: Offset(offset: eventData))
+        builder.finish(offset: eventData)
 
-        // Extract data from ByteBuffer safely
-        let buffer = builder.sizedBuffer
-        return buffer.data
+        // Extract data from ByteBuffer using new API
+        return Data(builder.sizedByteArray)
     }
 
     /// Serialize event payload as JSON
@@ -248,9 +283,8 @@ public struct FlatBuffersProtocol {
 
         builder.finish(offset: Offset(offset: logData))
 
-        // Extract data from ByteBuffer safely
-        let buffer = builder.sizedBuffer
-        return buffer.data
+        // Extract data from ByteBuffer using new API
+        return Data(builder.sizedByteArray)
     }
 
     /// Serialize log payload as JSON

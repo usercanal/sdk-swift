@@ -11,15 +11,15 @@ import Foundation
 /// Convenient singleton interface for UserCanal analytics
 /// Provides PostHog/Segment-style developer experience with UserCanal's advanced capabilities
 @MainActor
-public class UserCanalSDK {
-    
+public class UserCanal {
+
     // MARK: - Singleton
-    
-    public static let shared = UserCanalSDK()
+
+    public static let shared = UserCanal()
     private init() {}
-    
+
     // MARK: - Internal Properties
-    
+
     private var client: UserCanalClient?
     private var currentUserID: String?
     private var anonymousID: String?
@@ -29,12 +29,12 @@ public class UserCanalSDK {
     private var deviceContextSent = false
     private var lastDeviceContextTime: Date?
     private var config: UserCanalConfig = .default
-    
+
     // Device context refresh timer
     private var deviceContextTimer: Timer?
-    
+
     // MARK: - Configuration
-    
+
     /// Configure UserCanal with API key and options
     /// Call this once during app startup
     /// - Parameters:
@@ -53,7 +53,7 @@ public class UserCanalSDK {
         onError: ((any Error) -> Void)? = nil
     ) {
         self.onError = onError
-        
+
         // Build configuration
         do {
             self.config = try UserCanalConfig(
@@ -65,29 +65,29 @@ public class UserCanalSDK {
             self.handleError(error)
             return
         }
-        
+
         // Initialize client asynchronously
         Task {
             do {
                 self.client = try await UserCanalClient(apiKey: apiKey, config: config)
                 self.isInitialized = true
-                
+
                 // Generate or load anonymous ID
                 self.anonymousID = self.getOrCreateAnonymousID()
-                
+
                 // Start device context refresh timer
                 self.startDeviceContextTimer(interval: deviceContextRefresh)
-                
-                SDKLogger.info("UserCanalSDK configured successfully", category: .general)
-                
+
+                SDKLogger.info("UserCanal configured successfully", category: .general)
+
             } catch {
                 self.handleError(error)
             }
         }
     }
-    
+
     // MARK: - Event Tracking
-    
+
     /// Track an event with optional properties
     /// - Parameters:
     ///   - eventName: Event name (typed or string)
@@ -97,12 +97,12 @@ public class UserCanalSDK {
             handleError(UserCanalError.clientNotInitialized)
             return
         }
-        
+
         let userID = getCurrentUserID()
-        
+
         // Ensure session is started and device context is sent
         ensureSessionStarted()
-        
+
         Task { [weak self] in
             await self?.client?.event(
                 userID: userID,
@@ -111,7 +111,7 @@ public class UserCanalSDK {
             )
         }
     }
-    
+
     /// Track an event with string name
     /// - Parameters:
     ///   - eventName: Event name as string
@@ -119,7 +119,7 @@ public class UserCanalSDK {
     public func track(_ eventName: String, properties: Properties = Properties()) {
         track(EventName(eventName), properties: properties)
     }
-    
+
     /// Track an event with dictionary properties (convenience)
     /// - Parameters:
     ///   - eventName: Event name
@@ -127,7 +127,7 @@ public class UserCanalSDK {
     public func track(_ eventName: EventName, properties: [String: Any]) {
         track(eventName, properties: Properties(properties))
     }
-    
+
     /// Track an event with string name and dictionary properties
     /// - Parameters:
     ///   - eventName: Event name as string
@@ -135,9 +135,9 @@ public class UserCanalSDK {
     public func track(_ eventName: String, properties: [String: Any]) {
         track(EventName(eventName), properties: Properties(properties))
     }
-    
+
     // MARK: - Revenue Tracking
-    
+
     /// Track a revenue event
     /// - Parameters:
     ///   - amount: Revenue amount
@@ -154,10 +154,10 @@ public class UserCanalSDK {
             handleError(UserCanalError.clientNotInitialized)
             return
         }
-        
+
         let userID = getCurrentUserID()
         ensureSessionStarted()
-        
+
         Task { [weak self] in
             await self?.client?.eventRevenue(
                 userID: userID,
@@ -168,7 +168,7 @@ public class UserCanalSDK {
             )
         }
     }
-    
+
     /// Track revenue with dictionary properties (convenience)
     public func eventRevenue(
         amount: Double,
@@ -183,9 +183,9 @@ public class UserCanalSDK {
             properties: Properties(properties)
         )
     }
-    
+
     // MARK: - User Management
-    
+
     /// Identify the current user
     /// - Parameters:
     ///   - userID: User identifier
@@ -195,17 +195,17 @@ public class UserCanalSDK {
             handleError(UserCanalError.clientNotInitialized)
             return
         }
-        
+
         currentUserID = userID
         ensureSessionStarted()
-        
+
         Task { [weak self] in
             await self?.client?.eventIdentify(userID: userID, traits: traits)
         }
-        
+
         SDKLogger.info("User identified: \(userID)", category: .general)
     }
-    
+
     /// Identify user with dictionary traits (convenience)
     /// - Parameters:
     ///   - userID: User identifier
@@ -213,7 +213,7 @@ public class UserCanalSDK {
     public func identify(_ userID: String, traits: [String: Any]) {
         identify(userID, traits: Properties(traits))
     }
-    
+
     /// Reset user session (logout)
     /// Generates new anonymous ID and clears current user
     public func reset() {
@@ -222,10 +222,10 @@ public class UserCanalSDK {
         saveAnonymousID(anonymousID!)
         sessionStarted = false
         deviceContextSent = false
-        
+
         SDKLogger.info("User session reset", category: .general)
     }
-    
+
     /// Associate user with a group
     /// - Parameters:
     ///   - groupID: Group identifier
@@ -235,10 +235,10 @@ public class UserCanalSDK {
             handleError(UserCanalError.clientNotInitialized)
             return
         }
-        
+
         let userID = getCurrentUserID()
         ensureSessionStarted()
-        
+
         Task { [weak self] in
             await self?.client?.eventGroup(
                 userID: userID,
@@ -247,14 +247,14 @@ public class UserCanalSDK {
             )
         }
     }
-    
+
     /// Associate user with group using dictionary properties (convenience)
     public func group(_ groupID: String, properties: [String: Any]) {
         group(groupID, properties: Properties(properties))
     }
-    
+
     // MARK: - Logging
-    
+
     /// Log a message with specified level
     /// - Parameters:
     ///   - level: Log level
@@ -268,7 +268,7 @@ public class UserCanalSDK {
         data: Properties = Properties()
     ) {
         guard isInitialized else { return }
-        
+
         Task { [weak self] in
             switch level {
             case .info:
@@ -292,7 +292,7 @@ public class UserCanalSDK {
             }
         }
     }
-    
+
     /// Log message with dictionary data (convenience)
     public func log(
         _ level: LogLevel,
@@ -302,93 +302,93 @@ public class UserCanalSDK {
     ) {
         log(level, message, service: service, data: Properties(data))
     }
-    
+
     // Convenience logging methods
     public func logInfo(_ message: String, service: String = "app", data: Properties = Properties()) {
         log(.info, message, service: service, data: data)
     }
-    
+
     public func logError(_ message: String, service: String = "app", data: Properties = Properties()) {
         log(.error, message, service: service, data: data)
     }
-    
+
     public func logDebug(_ message: String, service: String = "app", data: Properties = Properties()) {
         log(.debug, message, service: service, data: data)
     }
-    
+
     public func logWarning(_ message: String, service: String = "app", data: Properties = Properties()) {
         log(.warning, message, service: service, data: data)
     }
-    
+
     // MARK: - Lifecycle
-    
+
     /// Manually flush pending events
     /// Use for critical moments like app termination or user logout
     public func flush() async throws {
         guard isInitialized, let client = client else {
             throw UserCanalError.clientNotInitialized
         }
-        
+
         try await client.flush()
     }
-    
+
     /// Shutdown the client and cleanup resources
     public func shutdown() async throws {
         deviceContextTimer?.invalidate()
         deviceContextTimer = nil
-        
+
         if let client = client {
             try await client.close()
         }
-        
+
         isInitialized = false
-        SDKLogger.info("UserCanalSDK shutdown", category: .general)
+        SDKLogger.info("UserCanal shutdown", category: .general)
     }
-    
+
     // MARK: - Internal Session Management
-    
+
     private func getCurrentUserID() -> String {
         return currentUserID ?? getAnonymousID()
     }
-    
+
     private func getAnonymousID() -> String {
         if let anonymousID = anonymousID {
             return anonymousID
         }
-        
+
         let newID = getOrCreateAnonymousID()
         anonymousID = newID
         return newID
     }
-    
+
     private func ensureSessionStarted() {
         guard !sessionStarted else { return }
-        
+
         sessionStarted = true
-        
+
         // Send device context enrichment once per session
         sendDeviceContextIfNeeded()
-        
+
         SDKLogger.debug("Session started for user: \(getCurrentUserID())", category: .general)
     }
-    
+
     private func sendDeviceContextIfNeeded() {
         let now = Date()
-        
+
         // Send if never sent, or if 24+ hours since last send
-        let shouldSend = !deviceContextSent || 
+        let shouldSend = !deviceContextSent ||
                         lastDeviceContextTime.map { now.timeIntervalSince($0) > 24 * 60 * 60 } ?? true
-        
+
         guard shouldSend else { return }
-        
+
         deviceContextSent = true
         lastDeviceContextTime = now
-        
+
         Task { [weak self] in
             // Create device context enrichment log entry
             let deviceContext = DeviceContext()
             let contextData = await deviceContext.getContext()
-            
+
             let enrichmentEntry = LogEntry(
                 eventType: .enrich,
                 level: .info,
@@ -396,51 +396,51 @@ public class UserCanalSDK {
                 message: "Device context enrichment",
                 data: Properties(contextData)
             )
-            
+
             await self?.client?.log(entry: enrichmentEntry)
-            
+
             SDKLogger.debug("Device context sent", category: .general)
         }
     }
-    
+
     private func startDeviceContextTimer(interval: TimeInterval) {
         deviceContextTimer?.invalidate()
-        
+
         deviceContextTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task {
                 await self?.sendDeviceContextIfNeeded()
             }
         }
     }
-    
+
     // MARK: - Anonymous ID Management
-    
+
     private func getOrCreateAnonymousID() -> String {
         if let stored = loadAnonymousID() {
             return stored
         }
-        
+
         let newID = generateAnonymousID()
         saveAnonymousID(newID)
         return newID
     }
-    
+
     private func generateAnonymousID() -> String {
         return "anon_" + UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: "")
     }
-    
+
     private func loadAnonymousID() -> String? {
         return UserDefaults.standard.string(forKey: "usercanal_anonymous_id")
     }
-    
+
     private func saveAnonymousID(_ id: String) {
         UserDefaults.standard.set(id, forKey: "usercanal_anonymous_id")
     }
-    
+
     // MARK: - Error Handling
-    
+
     private func handleError(_ error: any Error) {
-        SDKLogger.error("UserCanalSDK error", error: error, category: .general)
+        SDKLogger.error("UserCanal error", error: error, category: .general)
         onError?(error)
     }
 }
@@ -448,17 +448,17 @@ public class UserCanalSDK {
 // MARK: - Additional Common Event Names
 
 extension EventName {
-    
-    // Screen Events  
+
+    // Screen Events
     public static let screenInteraction = EventName("Screen Interaction")
-    
+
     // Feature Events
     public static let buttonTapped = EventName("Button Tapped")
-    
+
     // Content Events
     public static let contentViewed = EventName("Content Viewed")
     public static let contentShared = EventName("Content Shared")
-    
+
     // Purchase Events
     public static let subscriptionPurchased = EventName("Subscription Purchased")
     public static let subscriptionCancelled = EventName("Subscription Cancelled")

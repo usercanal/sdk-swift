@@ -1,0 +1,51 @@
+# FlatBuffers Swift Alignment Fix Patch
+# 
+# ISSUE: Fatal error: load from misaligned raw pointer
+# LOCATION: FlatBufferBuilder.swift:305 in endTable() method
+# CAUSE: vt2.load(fromByteOffset: 0, as: Int16.self) performs unsafe aligned read
+# PLATFORM: ARM64 macOS with Swift 6.1
+# 
+# SYMPTOMS:
+# - Crashes when creating tables with multiple fields
+# - Error: Swift/UnsafeRawPointer.swift:1275: Fatal error: load from misaligned raw pointer
+# - Specifically triggers in vtable deduplication code
+#
+# ROOT CAUSE:
+# The vtable pointer (vt2) can have an odd memory address, but Int16.self requires
+# 2-byte alignment. The load() method performs a direct memory read without
+# alignment checks, causing crashes on ARM64.
+#
+# SOLUTION:
+# Replace unsafe memory load with safe ByteBuffer read method that handles
+# alignment internally.
+
+--- a/flatbuffers/swift/Sources/FlatBuffers/FlatBufferBuilder.swift
++++ b/flatbuffers/swift/Sources/FlatBuffers/FlatBufferBuilder.swift
+@@ -302,7 +302,7 @@
+     var isAlreadyAdded: Int?
+ 
+     let vt2 = _bb.memory.advanced(by: _bb.writerIndex)
+-    let len2 = vt2.load(fromByteOffset: 0, as: Int16.self)
++    let len2 = _bb.read(def: Int16.self, position: _bb.writerIndex)
+ 
+     for index in stride(from: 0, to: _vtables.count, by: 1) {
+       let position = _bb.capacity &- Int(_vtables[index])
+
+# EXPLANATION:
+# - OLD: vt2.load(fromByteOffset: 0, as: Int16.self) - Direct unsafe memory read
+# - NEW: _bb.read(def: Int16.self, position: _bb.writerIndex) - Safe aligned read
+#
+# The _bb.read() method internally handles alignment and endianness correctly,
+# while the direct .load() assumes the pointer is properly aligned for Int16.
+#
+# VERIFICATION:
+# This fix resolves crashes in:
+# - Complex table creation (multiple fields with mixed types)
+# - UserCanal schema serialization (Batch, Event, LogEntry tables)
+# - Any FlatBuffers usage on ARM64 platforms
+#
+# STATUS: Applied to local FlatBuffers copy and tested successfully
+# DEPENDENCY: Package.swift updated to use local patched version:
+#   .package(path: "./flatbuffers")
+#
+# UPSTREAM: This should be reported to google/flatbuffers repository

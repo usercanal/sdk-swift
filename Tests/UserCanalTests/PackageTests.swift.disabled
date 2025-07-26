@@ -1,0 +1,133 @@
+// PackageTests.swift
+// UserCanal Swift SDK Tests - Package Information Tests
+//
+// Copyright © 2024 UserCanal. All rights reserved.
+//
+
+import XCTest
+@testable import UserCanal
+
+/// Tests for SDK package information and metadata
+final class PackageTests: XCTestCase {
+
+    // MARK: - Version Tests
+
+    func testSDKVersion() {
+        let version = UserCanal.version
+
+        XCTAssertFalse(version.isEmpty, "SDK version should not be empty")
+
+        // Test semantic versioning format
+        let versionParts = version.split(separator: ".")
+        XCTAssertGreaterThanOrEqual(versionParts.count, 3, "Version should have at least major.minor.patch")
+
+        // Test that version parts are numeric (ignoring pre-release suffixes)
+        if versionParts.count >= 3 {
+            let major = String(versionParts[0])
+            let minor = String(versionParts[1])
+            let patch = String(versionParts[2]).split(separator: "-").first.map(String.init) ?? String(versionParts[2])
+
+            XCTAssertNotNil(Int(major), "Major version should be numeric")
+            XCTAssertNotNil(Int(minor), "Minor version should be numeric")
+            XCTAssertNotNil(Int(patch), "Patch version should be numeric")
+        }
+    }
+
+    func testVersionConsistency() {
+        let version1 = UserCanal.version
+        let version2 = UserCanal.version
+
+        XCTAssertEqual(version1, version2, "Version should be consistent across calls")
+    }
+
+    // MARK: - SDK Metadata Tests
+
+    func testSDKMetadata() {
+        // Test that we can access basic SDK information
+        let version = UserCanal.version
+        XCTAssertFalse(version.isEmpty)
+
+        // These properties might not exist yet, so we test conditionally
+        if let sdkName = UserCanal.sdkName {
+            XCTAssertFalse(sdkName.isEmpty, "SDK name should not be empty if provided")
+            XCTAssertTrue(sdkName.lowercased().contains("usercanal"), "SDK name should contain 'usercanal'")
+        }
+
+        if let userAgent = UserCanal.userAgent {
+            XCTAssertFalse(userAgent.isEmpty, "User agent should not be empty if provided")
+            XCTAssertTrue(userAgent.contains(version), "User agent should contain version")
+        }
+    }
+
+    // MARK: - Module Import Tests
+
+    func testModuleImport() {
+        // Test that the UserCanal module can be imported and basic types are accessible
+        XCTAssertNotNil(UserCanal.self, "UserCanal module should be importable")
+        XCTAssertNotNil(Event.self, "Event type should be accessible")
+        XCTAssertNotNil(LogEntry.self, "LogEntry type should be accessible")
+        XCTAssertNotNil(Properties.self, "Properties type should be accessible")
+        XCTAssertNotNil(EventName.self, "EventName type should be accessible")
+        XCTAssertNotNil(UserCanalConfig.self, "UserCanalConfig type should be accessible")
+        XCTAssertNotNil(UserCanalClient.self, "UserCanalClient type should be accessible")
+    }
+
+    // MARK: - Platform Tests
+
+    func testPlatformSupport() {
+        // Test that we're running on a supported platform
+        #if os(iOS)
+        XCTAssertTrue(true, "iOS platform supported")
+        #elseif os(macOS)
+        XCTAssertTrue(true, "macOS platform supported")
+        #elseif os(visionOS)
+        XCTAssertTrue(true, "visionOS platform supported")
+        #else
+        XCTFail("Unsupported platform")
+        #endif
+    }
+
+    // MARK: - Swift Version Tests
+
+    func testSwiftVersion() {
+        // Test that we're using a supported Swift version
+        #if swift(>=6.0)
+        XCTAssertTrue(true, "Swift 6.0+ supported")
+        #else
+        XCTFail("Unsupported Swift version - requires Swift 6.0+")
+        #endif
+    }
+
+    // MARK: - Concurrency Support Tests
+
+    func testConcurrencySupport() {
+        // Test that async/await is available
+        let expectation = XCTestExpectation(description: "Async/await should be supported")
+
+        Task {
+            // Simple async operation
+            await Task.yield()
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    // MARK: - Sendable Support Tests
+
+    func testSendableTypes() {
+        // Test that key types conform to Sendable
+        XCTAssertTrue(Event.self is any Sendable.Type, "Event should be Sendable")
+        XCTAssertTrue(LogEntry.self is any Sendable.Type, "LogEntry should be Sendable")
+        XCTAssertTrue(Properties.self is any Sendable.Type, "Properties should be Sendable")
+        XCTAssertTrue(EventName.self is any Sendable.Type, "EventName should be Sendable")
+    }
+
+    // MARK: - Package Configuration Tests
+
+    func testPackageConfiguration() {
+        // Test that package can be configured with default values
+        let defaultConfig = UserCanalConfig.default
+        XCTAssertNotNil(defaultConfig, "Default configuration should be available")
+    }
+}

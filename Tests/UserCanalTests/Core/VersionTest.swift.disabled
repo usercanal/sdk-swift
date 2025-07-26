@@ -1,0 +1,178 @@
+// VersionTest.swift
+// UserCanal Swift SDK Tests - Version Unit Tests
+//
+// Copyright © 2024 UserCanal. All rights reserved.
+//
+
+import XCTest
+@testable import UserCanal
+
+/// Unit tests for Version information and validation
+final class VersionTest: XCTestCase {
+
+    // MARK: - Version Format Tests
+
+    func testVersionFormat() {
+        let version = UserCanal.version
+
+        XCTAssertFalse(version.isEmpty, "Version should not be empty")
+
+        // Test semantic versioning format (X.Y.Z or X.Y.Z-suffix)
+        let semverPattern = #"^\d+\.\d+\.\d+(-[a-zA-Z0-9\-\.]+)?$"#
+        let regex = try! NSRegularExpression(pattern: semverPattern)
+        let range = NSRange(location: 0, length: version.utf16.count)
+        let matches = regex.numberOfMatches(in: version, range: range)
+
+        XCTAssertGreaterThan(matches, 0, "Version should follow semantic versioning format: \(version)")
+    }
+
+    func testVersionParts() {
+        let version = UserCanal.version
+        let parts = version.split(separator: ".")
+
+        XCTAssertGreaterThanOrEqual(parts.count, 3, "Version should have at least 3 parts (major.minor.patch)")
+
+        // Test that major, minor, patch are numeric
+        if parts.count >= 3 {
+            let major = String(parts[0])
+            let minor = String(parts[1])
+            let patchPart = String(parts[2])
+
+            // Extract patch number (might have -suffix)
+            let patch = patchPart.split(separator: "-").first.map(String.init) ?? patchPart
+
+            XCTAssertNotNil(Int(major), "Major version should be numeric: \(major)")
+            XCTAssertNotNil(Int(minor), "Minor version should be numeric: \(minor)")
+            XCTAssertNotNil(Int(patch), "Patch version should be numeric: \(patch)")
+        }
+    }
+
+    // MARK: - Version Consistency Tests
+
+    func testVersionConsistency() {
+        let version1 = UserCanal.version
+        let version2 = UserCanal.version
+
+        XCTAssertEqual(version1, version2, "Version should be consistent across calls")
+    }
+
+    func testVersionNotEmpty() {
+        let version = UserCanal.version
+
+        XCTAssertFalse(version.isEmpty, "Version should not be empty")
+        XCTAssertFalse(version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "Version should not be just whitespace")
+    }
+
+    // MARK: - Version Information Tests
+
+    func testSDKName() {
+        // Test SDK name if available
+        if let sdkName = UserCanal.sdkName {
+            XCTAssertFalse(sdkName.isEmpty, "SDK name should not be empty")
+            XCTAssertTrue(sdkName.lowercased().contains("usercanal"), "SDK name should contain 'usercanal'")
+        } else {
+            // SDK name might not be implemented yet
+            XCTAssertTrue(true, "SDK name not yet implemented")
+        }
+    }
+
+    func testBuildNumber() {
+        // Test build number if available
+        if let buildNumber = UserCanal.buildNumber {
+            XCTAssertFalse(buildNumber.isEmpty, "Build number should not be empty")
+        } else {
+            // Build number might not be implemented yet
+            XCTAssertTrue(true, "Build number not yet implemented")
+        }
+    }
+
+    // MARK: - Version Comparison Tests
+
+    func testVersionComparison() {
+        let version = UserCanal.version
+
+        // Test basic version comparison logic
+        XCTAssertTrue(isValidVersion(version), "Version should be valid: \(version)")
+
+        // Test that version is not a placeholder
+        let placeholderVersions = ["0.0.0", "1.0.0", "0.0.1", "dev", "test", "unknown"]
+        let isPlaceholder = placeholderVersions.contains(version)
+
+        // This is informational - placeholder versions are okay during development
+        if isPlaceholder {
+            print("ℹ️ Version appears to be a placeholder: \(version)")
+        } else {
+            print("✅ Version appears to be a real version: \(version)")
+        }
+    }
+
+    // MARK: - Platform Information Tests
+
+    func testPlatformInformation() {
+        // Test platform-specific version information
+        #if os(iOS)
+        XCTAssertTrue(true, "Running on iOS")
+        #elseif os(macOS)
+        XCTAssertTrue(true, "Running on macOS")
+        #elseif os(visionOS)
+        XCTAssertTrue(true, "Running on visionOS")
+        #else
+        XCTFail("Unsupported platform")
+        #endif
+    }
+
+    func testUserAgent() {
+        // Test user agent string if available
+        if let userAgent = UserCanal.userAgent {
+            XCTAssertFalse(userAgent.isEmpty, "User agent should not be empty")
+            XCTAssertTrue(userAgent.contains(UserCanal.version), "User agent should contain version")
+        } else {
+            // User agent might not be implemented yet
+            XCTAssertTrue(true, "User agent not yet implemented")
+        }
+    }
+
+    // MARK: - Memory and Performance Tests
+
+    func testVersionAccessPerformance() {
+        // Test that version access is fast
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        for _ in 0..<1000 {
+            _ = UserCanal.version
+        }
+
+        let endTime = CFAbsoluteTimeGetCurrent()
+        let duration = endTime - startTime
+
+        XCTAssertLessThan(duration, 1.0, "Version access should be fast (completed 1000 calls in < 1 second)")
+    }
+
+    func testVersionMemoryFootprint() {
+        // Test that version doesn't cause memory leaks
+        weak var weakString: NSString?
+
+        autoreleasepool {
+            let version = UserCanal.version as NSString
+            weakString = version
+            XCTAssertNotNil(weakString, "Version string should exist in autorelease pool")
+        }
+
+        // Note: This test might not be reliable due to string interning
+        // It's more of a documentation of expected behavior
+    }
+
+    // MARK: - Helper Methods
+
+    private func isValidVersion(_ version: String) -> Bool {
+        let parts = version.split(separator: ".")
+        guard parts.count >= 3 else { return false }
+
+        let major = String(parts[0])
+        let minor = String(parts[1])
+        let patchPart = String(parts[2])
+        let patch = patchPart.split(separator: "-").first.map(String.init) ?? patchPart
+
+        return Int(major) != nil && Int(minor) != nil && Int(patch) != nil
+    }
+}

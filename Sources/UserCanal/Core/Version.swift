@@ -23,7 +23,7 @@ public struct Version: Sendable {
     /// The build timestamp (set during build)
     public static let buildTime = "unknown"
 
-    /// The protocol version for compatibility with other SDKs
+    /// The protocol version
     public static let protocolVersion = "v1"
 
     /// The Swift version used to build this SDK

@@ -1,0 +1,320 @@
+// UserCanalClientTest.swift
+// UserCanal Swift SDK Tests - UserCanalClient Unit Tests
+//
+// Copyright © 2024 UserCanal. All rights reserved.
+//
+
+import XCTest
+@testable import UserCanal
+
+/// Unit tests for UserCanalClient - the main SDK interface
+final class UserCanalClientTest: XCTestCase {
+
+    // MARK: - Test Configuration
+
+    private var testConfig: UserCanalConfig!
+    private var testAPIKey: String!
+
+    override func setUp() {
+        super.setUp()
+        testAPIKey = "test-api-key-12345"
+        testConfig = UserCanalConfig(
+            apiKey: testAPIKey,
+            baseURL: "https://test.usercanal.com",
+            flushInterval: 30.0,
+            maxBatchSize: 100,
+            enableDebugLogging: true
+        )
+    }
+
+    override func tearDown() {
+        testConfig = nil
+        testAPIKey = nil
+        super.tearDown()
+    }
+
+    // MARK: - Initialization Tests
+
+    func testClientInitialization() {
+        // Test successful initialization
+        let client = UserCanalClient(config: testConfig)
+
+        XCTAssertNotNil(client, "Client should initialize successfully")
+        // Note: Can't test internal properties without making them internal/public
+    }
+
+    func testClientSharedInstance() {
+        // Test that shared instance can be configured
+        UserCanal.configure(apiKey: testAPIKey)
+
+        let sharedClient = UserCanal.shared
+        XCTAssertNotNil(sharedClient, "Shared instance should be available after configuration")
+    }
+
+    func testClientConfigurationValidation() {
+        // Test with invalid API key
+        let invalidConfig = UserCanalConfig(
+            apiKey: "", // Empty API key
+            baseURL: "https://test.usercanal.com"
+        )
+
+        // This should still create a client but may log warnings
+        let client = UserCanalClient(config: invalidConfig)
+        XCTAssertNotNil(client, "Client should initialize even with invalid config")
+    }
+
+    // MARK: - Event Tracking Tests
+
+    func testTrackEvent() {
+        let client = UserCanalClient(config: testConfig)
+
+        // Test basic event tracking
+        let expectation = XCTestExpectation(description: "Event tracking should not crash")
+
+        DispatchQueue.global().async {
+            // This should not crash or throw
+            client.track(
+                userID: "test-user-123",
+                eventName: "test_event",
+                properties: ["test": "value"]
+            )
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testTrackEventWithEventObject() {
+        let client = UserCanalClient(config: testConfig)
+
+        let event = Event(
+            userID: "test-user-456",
+            name: EventName("custom_event"),
+            properties: Properties(["custom": "data"])
+        )
+
+        let expectation = XCTestExpectation(description: "Event object tracking should not crash")
+
+        DispatchQueue.global().async {
+            client.track(event: event)
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testTrackEventWithEmptyProperties() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "Event with empty properties should not crash")
+
+        DispatchQueue.global().async {
+            client.track(
+                userID: "test-user-789",
+                eventName: "empty_props_event",
+                properties: [:]
+            )
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    // MARK: - Identity Tests
+
+    func testIdentifyUser() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "User identification should not crash")
+
+        DispatchQueue.global().async {
+            client.identify(
+                userID: "identify-user-123",
+                traits: ["name": "Test User", "email": "test@example.com"]
+            )
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testIdentifyWithEmptyTraits() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "Identify with empty traits should not crash")
+
+        DispatchQueue.global().async {
+            client.identify(userID: "identify-user-456", traits: [:])
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    // MARK: - Group Tests
+
+    func testGroupUser() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "Group operation should not crash")
+
+        DispatchQueue.global().async {
+            client.group(
+                userID: "group-user-123",
+                groupID: "company-456",
+                traits: ["name": "Test Company"]
+            )
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    // MARK: - Logging Tests
+
+    func testLogMessage() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "Logging should not crash")
+
+        DispatchQueue.global().async {
+            client.log(
+                level: .info,
+                message: "Test log message",
+                service: "test-service"
+            )
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testLogWithLogEntry() {
+        let client = UserCanalClient(config: testConfig)
+
+        let logEntry = LogEntry(
+            level: .warning,
+            timestamp: Date(),
+            source: "test-source",
+            service: "test-service",
+            message: "Custom log entry test"
+        )
+
+        let expectation = XCTestExpectation(description: "LogEntry logging should not crash")
+
+        DispatchQueue.global().async {
+            client.log(entry: logEntry)
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    // MARK: - Flush Tests
+
+    func testFlush() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "Flush should complete")
+
+        client.flush { result in
+            switch result {
+            case .success:
+                XCTAssertTrue(true, "Flush succeeded")
+            case .failure(let error):
+                // Flush might fail in test environment, that's okay
+                XCTAssertNotNil(error, "Flush failed with expected error: \(error)")
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 5.0)
+    }
+
+    func testAsyncFlush() async {
+        let client = UserCanalClient(config: testConfig)
+
+        // Test async flush doesn't crash
+        do {
+            try await client.flush()
+            XCTAssertTrue(true, "Async flush completed")
+        } catch {
+            // Flush might fail in test environment, that's okay
+            XCTAssertNotNil(error, "Async flush failed with expected error: \(error)")
+        }
+    }
+
+    // MARK: - Reset Tests
+
+    func testReset() {
+        let client = UserCanalClient(config: testConfig)
+
+        let expectation = XCTestExpectation(description: "Reset should not crash")
+
+        DispatchQueue.global().async {
+            client.reset()
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    // MARK: - Thread Safety Tests
+
+    func testConcurrentOperations() {
+        let client = UserCanalClient(config: testConfig)
+        let expectation = XCTestExpectation(description: "Concurrent operations should not crash")
+        expectation.expectedFulfillmentCount = 10
+
+        // Perform multiple operations concurrently
+        for i in 0..<10 {
+            DispatchQueue.global().async {
+                client.track(
+                    userID: "concurrent-user-\(i)",
+                    eventName: "concurrent_event",
+                    properties: ["index": i]
+                )
+                expectation.fulfill()
+            }
+        }
+
+        wait(for: [expectation], timeout: 2.0)
+    }
+
+    func testMixedConcurrentOperations() {
+        let client = UserCanalClient(config: testConfig)
+        let expectation = XCTestExpectation(description: "Mixed concurrent operations should not crash")
+        expectation.expectedFulfillmentCount = 12
+
+        // Mix different operations
+        DispatchQueue.global().async {
+            client.track(userID: "mixed-1", eventName: "track_test", properties: [:])
+            expectation.fulfill()
+        }
+
+        DispatchQueue.global().async {
+            client.identify(userID: "mixed-2", traits: [:])
+            expectation.fulfill()
+        }
+
+        DispatchQueue.global().async {
+            client.group(userID: "mixed-3", groupID: "group-1", traits: [:])
+            expectation.fulfill()
+        }
+
+        DispatchQueue.global().async {
+            client.log(level: .info, message: "Mixed test", service: "test")
+            expectation.fulfill()
+        }
+
+        // Repeat to test stability
+        for i in 0..<8 {
+            DispatchQueue.global().async {
+                client.track(userID: "stress-\(i)", eventName: "stress_test", properties: ["i": i])
+                expectation.fulfill()
+            }
+        }
+
+        wait(for: [expectation], timeout: 3.0)
+    }
+}

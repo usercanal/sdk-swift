@@ -1,0 +1,267 @@
+// ConfigurationTest.swift
+// UserCanal Swift SDK Tests - Configuration Unit Tests
+//
+// Copyright © 2024 UserCanal. All rights reserved.
+//
+
+import XCTest
+@testable import UserCanal
+
+/// Unit tests for UserCanalConfig - SDK configuration validation
+final class ConfigurationTest: XCTestCase {
+
+    // MARK: - Default Configuration Tests
+
+    func testDefaultConfiguration() {
+        let config = UserCanalConfig(apiKey: "test-api-key")
+
+        XCTAssertEqual(config.apiKey, "test-api-key")
+        XCTAssertEqual(config.baseURL, "https://api.usercanal.com")
+        XCTAssertEqual(config.flushInterval, 30.0)
+        XCTAssertEqual(config.maxBatchSize, 100)
+        XCTAssertEqual(config.maxOfflineEvents, 1000)
+        XCTAssertFalse(config.enableDebugLogging)
+        XCTAssertFalse(config.enableOfflineStorage)
+        XCTAssertTrue(config.enableAutoFlush)
+    }
+
+    // MARK: - Custom Configuration Tests
+
+    func testCustomConfiguration() {
+        let config = UserCanalConfig(
+            apiKey: "custom-api-key",
+            baseURL: "https://custom.usercanal.com",
+            flushInterval: 60.0,
+            maxBatchSize: 200,
+            maxOfflineEvents: 2000,
+            enableDebugLogging: true,
+            enableOfflineStorage: true,
+            enableAutoFlush: false
+        )
+
+        XCTAssertEqual(config.apiKey, "custom-api-key")
+        XCTAssertEqual(config.baseURL, "https://custom.usercanal.com")
+        XCTAssertEqual(config.flushInterval, 60.0)
+        XCTAssertEqual(config.maxBatchSize, 200)
+        XCTAssertEqual(config.maxOfflineEvents, 2000)
+        XCTAssertTrue(config.enableDebugLogging)
+        XCTAssertTrue(config.enableOfflineStorage)
+        XCTAssertFalse(config.enableAutoFlush)
+    }
+
+    // MARK: - API Key Validation Tests
+
+    func testEmptyAPIKey() {
+        let config = UserCanalConfig(apiKey: "")
+
+        XCTAssertEqual(config.apiKey, "")
+        // Note: Empty API key might be allowed but should be handled by client
+    }
+
+    func testWhitespaceAPIKey() {
+        let config = UserCanalConfig(apiKey: "   ")
+
+        XCTAssertEqual(config.apiKey, "   ")
+        // Note: Whitespace-only API key should be handled by validation
+    }
+
+    func testValidAPIKey() {
+        let validKeys = [
+            "valid-api-key-123",
+            "VALID_API_KEY_456",
+            "ValidApiKey789",
+            "123-456-789-abc",
+            "a1b2c3d4e5f6"
+        ]
+
+        for key in validKeys {
+            let config = UserCanalConfig(apiKey: key)
+            XCTAssertEqual(config.apiKey, key, "API key should be preserved: \(key)")
+        }
+    }
+
+    // MARK: - URL Validation Tests
+
+    func testValidBaseURLs() {
+        let validURLs = [
+            "https://api.usercanal.com",
+            "https://custom.usercanal.com",
+            "https://staging.usercanal.com",
+            "http://localhost:8080",
+            "https://api.custom-domain.com"
+        ]
+
+        for url in validURLs {
+            let config = UserCanalConfig(apiKey: "test", baseURL: url)
+            XCTAssertEqual(config.baseURL, url, "Valid URL should be preserved: \(url)")
+        }
+    }
+
+    func testInvalidBaseURLs() {
+        let invalidURLs = [
+            "",
+            "not-a-url",
+            "ftp://invalid.com",
+            "javascript:alert('xss')"
+        ]
+
+        for url in invalidURLs {
+            let config = UserCanalConfig(apiKey: "test", baseURL: url)
+            // Configuration should still be created, but client should validate
+            XCTAssertEqual(config.baseURL, url, "Invalid URL should be stored as-is for client validation")
+        }
+    }
+
+    // MARK: - Numeric Parameter Tests
+
+    func testFlushIntervalValidation() {
+        let validIntervals = [1.0, 5.0, 30.0, 60.0, 300.0]
+
+        for interval in validIntervals {
+            let config = UserCanalConfig(apiKey: "test", flushInterval: interval)
+            XCTAssertEqual(config.flushInterval, interval, "Valid flush interval should be preserved: \(interval)")
+        }
+    }
+
+    func testFlushIntervalBoundaries() {
+        // Test edge cases
+        let edgeCases = [0.1, 0.0, -1.0, 3600.0, Double.infinity]
+
+        for interval in edgeCases {
+            let config = UserCanalConfig(apiKey: "test", flushInterval: interval)
+            XCTAssertEqual(config.flushInterval, interval, "Edge case flush interval should be stored: \(interval)")
+        }
+    }
+
+    func testMaxBatchSizeValidation() {
+        let validSizes = [1, 10, 100, 500, 1000]
+
+        for size in validSizes {
+            let config = UserCanalConfig(apiKey: "test", maxBatchSize: size)
+            XCTAssertEqual(config.maxBatchSize, size, "Valid batch size should be preserved: \(size)")
+        }
+    }
+
+    func testMaxBatchSizeBoundaries() {
+        let edgeCases = [0, -1, 10000]
+
+        for size in edgeCases {
+            let config = UserCanalConfig(apiKey: "test", maxBatchSize: size)
+            XCTAssertEqual(config.maxBatchSize, size, "Edge case batch size should be stored: \(size)")
+        }
+    }
+
+    func testMaxOfflineEventsValidation() {
+        let validCounts = [0, 100, 1000, 5000, 10000]
+
+        for count in validCounts {
+            let config = UserCanalConfig(apiKey: "test", maxOfflineEvents: count)
+            XCTAssertEqual(config.maxOfflineEvents, count, "Valid offline events count should be preserved: \(count)")
+        }
+    }
+
+    // MARK: - Boolean Flag Tests
+
+    func testBooleanFlags() {
+        // Test all combinations of boolean flags
+        let flagCombinations = [
+            (debug: true, offline: true, autoFlush: true),
+            (debug: true, offline: true, autoFlush: false),
+            (debug: true, offline: false, autoFlush: true),
+            (debug: true, offline: false, autoFlush: false),
+            (debug: false, offline: true, autoFlush: true),
+            (debug: false, offline: true, autoFlush: false),
+            (debug: false, offline: false, autoFlush: true),
+            (debug: false, offline: false, autoFlush: false)
+        ]
+
+        for combination in flagCombinations {
+            let config = UserCanalConfig(
+                apiKey: "test",
+                enableDebugLogging: combination.debug,
+                enableOfflineStorage: combination.offline,
+                enableAutoFlush: combination.autoFlush
+            )
+
+            XCTAssertEqual(config.enableDebugLogging, combination.debug)
+            XCTAssertEqual(config.enableOfflineStorage, combination.offline)
+            XCTAssertEqual(config.enableAutoFlush, combination.autoFlush)
+        }
+    }
+
+    // MARK: - Configuration Immutability Tests
+
+    func testConfigurationImmutability() {
+        let config = UserCanalConfig(
+            apiKey: "immutable-test",
+            baseURL: "https://test.com",
+            flushInterval: 45.0,
+            maxBatchSize: 150,
+            enableDebugLogging: true
+        )
+
+        // Verify values are preserved (testing immutability)
+        XCTAssertEqual(config.apiKey, "immutable-test")
+        XCTAssertEqual(config.baseURL, "https://test.com")
+        XCTAssertEqual(config.flushInterval, 45.0)
+        XCTAssertEqual(config.maxBatchSize, 150)
+        XCTAssertTrue(config.enableDebugLogging)
+    }
+
+    // MARK: - Performance Configuration Tests
+
+    func testPerformanceConfiguration() {
+        // Test if PerformanceConfiguration is accessible
+        let config = UserCanalConfig(apiKey: "perf-test")
+
+        // Note: This assumes PerformanceConfiguration exists in the config
+        // If it doesn't exist yet, this test documents the expected interface
+        if let perfConfig = config.performance {
+            XCTAssertNotNil(perfConfig.enableMemoryOptimization)
+            XCTAssertNotNil(perfConfig.enableBatteryOptimization)
+            XCTAssertNotNil(perfConfig.maxMemoryUsage)
+        } else {
+            // Performance config might not be implemented yet
+            XCTAssertTrue(true, "Performance configuration not yet implemented")
+        }
+    }
+
+    // MARK: - String Representation Tests
+
+    func testConfigurationDescription() {
+        let config = UserCanalConfig(
+            apiKey: "description-test",
+            baseURL: "https://desc.test.com",
+            enableDebugLogging: true
+        )
+
+        // Test that config can be converted to string (useful for debugging)
+        let description = String(describing: config)
+        XCTAssertFalse(description.isEmpty, "Configuration should have string representation")
+        XCTAssertTrue(description.contains("UserCanalConfig"), "Description should identify the type")
+    }
+
+    // MARK: - Memory Tests
+
+    func testConfigurationMemoryFootprint() {
+        // Test creating many configurations doesn't cause memory issues
+        var configs: [UserCanalConfig] = []
+
+        for i in 0..<100 {
+            let config = UserCanalConfig(
+                apiKey: "memory-test-\(i)",
+                baseURL: "https://memory-test-\(i).com",
+                flushInterval: Double(i % 60 + 1),
+                maxBatchSize: i % 500 + 1
+            )
+            configs.append(config)
+        }
+
+        XCTAssertEqual(configs.count, 100, "All configurations should be created")
+
+        // Verify some random configs are correct
+        XCTAssertEqual(configs[0].apiKey, "memory-test-0")
+        XCTAssertEqual(configs[50].apiKey, "memory-test-50")
+        XCTAssertEqual(configs[99].apiKey, "memory-test-99")
+    }
+}

@@ -738,7 +738,7 @@ public actor UserCanalClient {
             try await flush()
 
             // Close internal components
-            await batcher?.close()
+            try? await batcher?.close()
             await networkClient?.close()
 
             // Clear references

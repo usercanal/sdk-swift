@@ -10,56 +10,55 @@ import Foundation
 
 /// Primary error type for the UserCanal Swift SDK
 public enum UserCanalError: Error, Sendable {
-    
+
     // MARK: - Configuration Errors
     case invalidConfiguration(String)
     case invalidAPIKey(String)
     case missingConfiguration(String)
-    
+
     // MARK: - Network Errors
     case networkFailure(NetworkFailureReason)
     case connectionTimeout(Duration)
     case connectionFailed(String)
     case dnsResolutionFailed(String)
-    
+
     // MARK: - Protocol Errors
     case protocolError(ProtocolErrorReason)
     case serializationFailed(String)
     case deserializationFailed(String)
-    case incompatibleProtocolVersion(expected: String, received: String)
-    
+
     // MARK: - Validation Errors
     case validationError(field: String, reason: String)
     case invalidEventData(String)
     case invalidUserID(String)
     case invalidProperties(String)
-    
+
     // MARK: - Client State Errors
     case clientNotInitialized
     case clientAlreadyClosed
     case clientShuttingDown
     case operationCancelled
-    
+
     // MARK: - Batching Errors
     case batchingError(BatchingErrorReason)
     case queueFull(currentSize: Int, maxSize: Int)
     case flushTimeout(Duration)
-    
+
     // MARK: - Device Context Errors
     case deviceContextError(DeviceContextErrorReason)
     case deviceContextUnavailable(String)
     case permissionDenied(String)
-    
+
     // MARK: - Storage Errors
     case storageError(StorageErrorReason)
     case persistenceFailed(String)
     case dataCorrupted(String)
-    
+
     // MARK: - Authentication Errors
     case authenticationFailed(String)
     case unauthorizedAccess(String)
     case rateLimited(retryAfter: Duration?)
-    
+
     // MARK: - Internal Errors
     case internalError(String, underlyingError: (any Error)?)
     case unexpectedState(String)
@@ -113,7 +112,6 @@ public enum StorageErrorReason: Sendable, Equatable {
     case diskFull
     case accessDenied
     case corruptedData(String)
-    case migrationFailed(String)
     case quotaExceeded(used: Int, limit: Int)
     case ioError(String)
 }
@@ -126,7 +124,7 @@ public struct ErrorRecoveryInfo: Sendable {
     public let suggestedRetryDelay: Duration?
     public let maxRetryAttempts: Int?
     public let recoveryActions: [RecoveryAction]
-    
+
     public init(
         isRecoverable: Bool,
         suggestedRetryDelay: Duration? = nil,
@@ -162,7 +160,7 @@ extension UserCanalError {
         switch self {
         case .networkFailure(let reason):
             return reason.recoveryInfo
-            
+
         case .connectionTimeout:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -170,19 +168,19 @@ extension UserCanalError {
                 maxRetryAttempts: 3,
                 recoveryActions: [.retry, .checkNetworkConnection]
             )
-            
+
         case .validationError:
             return ErrorRecoveryInfo(
                 isRecoverable: false,
                 recoveryActions: [.validateConfiguration]
             )
-            
+
         case .clientNotInitialized:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
                 recoveryActions: [.restartClient]
             )
-            
+
         case .queueFull:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -190,7 +188,7 @@ extension UserCanalError {
                 maxRetryAttempts: 5,
                 recoveryActions: [.waitAndRetry, .clearCache]
             )
-            
+
         case .rateLimited(let retryAfter):
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -198,13 +196,13 @@ extension UserCanalError {
                 maxRetryAttempts: 1,
                 recoveryActions: [.waitAndRetry]
             )
-            
+
         case .storageError(let reason):
             return reason.recoveryInfo
-            
+
         case .deviceContextError(let reason):
             return reason.recoveryInfo
-            
+
         default:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -228,7 +226,7 @@ extension NetworkFailureReason {
                 maxRetryAttempts: 3,
                 recoveryActions: [.checkNetworkConnection, .waitAndRetry]
             )
-            
+
         case .serverError(let statusCode, _):
             let retryable = (500...599).contains(statusCode)
             return ErrorRecoveryInfo(
@@ -237,7 +235,7 @@ extension NetworkFailureReason {
                 maxRetryAttempts: retryable ? 3 : nil,
                 recoveryActions: retryable ? [.retry] : [.contactSupport]
             )
-            
+
         case .requestTimeout:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -245,7 +243,7 @@ extension NetworkFailureReason {
                 maxRetryAttempts: 3,
                 recoveryActions: [.retry, .checkNetworkConnection]
             )
-            
+
         default:
             return ErrorRecoveryInfo(
                 isRecoverable: false,
@@ -263,19 +261,19 @@ extension StorageErrorReason {
                 isRecoverable: true,
                 recoveryActions: [.freeUpStorage, .clearCache]
             )
-            
+
         case .accessDenied:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
                 recoveryActions: [.checkPermissions, .restartClient]
             )
-            
-        case .corruptedData, .migrationFailed:
+
+        case .corruptedData:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
                 recoveryActions: [.clearCache, .restartClient]
             )
-            
+
         case .ioError:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -295,7 +293,7 @@ extension DeviceContextErrorReason {
                 isRecoverable: true,
                 recoveryActions: [.checkPermissions]
             )
-            
+
         case .contextCollectionFailed, .contextUpdateFailed:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -303,13 +301,13 @@ extension DeviceContextErrorReason {
                 maxRetryAttempts: 3,
                 recoveryActions: [.retry]
             )
-            
+
         case .unsupportedPlatform:
             return ErrorRecoveryInfo(
                 isRecoverable: false,
                 recoveryActions: [.contactSupport]
             )
-            
+
         case .contextDataCorrupted:
             return ErrorRecoveryInfo(
                 isRecoverable: true,
@@ -326,116 +324,113 @@ extension UserCanalError: LocalizedError {
         switch self {
         case .invalidConfiguration(let details):
             return "Invalid configuration: \(details)"
-            
+
         case .invalidAPIKey(let reason):
             return "Invalid API key: \(reason)"
-            
+
         case .missingConfiguration(let parameter):
             return "Missing required configuration: \(parameter)"
-            
+
         case .networkFailure(let reason):
             return "Network failure: \(reason.localizedDescription)"
-            
+
         case .connectionTimeout(let duration):
             return "Connection timed out after \(duration)"
-            
+
         case .connectionFailed(let reason):
             return "Connection failed: \(reason)"
-            
+
         case .dnsResolutionFailed(let host):
             return "DNS resolution failed for host: \(host)"
-            
+
         case .protocolError(let reason):
             return "Protocol error: \(reason.localizedDescription)"
-            
+
         case .serializationFailed(let details):
             return "Serialization failed: \(details)"
-            
+
         case .deserializationFailed(let details):
             return "Deserialization failed: \(details)"
-            
-        case .incompatibleProtocolVersion(let expected, let received):
-            return "Incompatible protocol version. Expected: \(expected), Received: \(received)"
-            
+
         case .validationError(let field, let reason):
             return "Validation error in field '\(field)': \(reason)"
-            
+
         case .invalidEventData(let details):
             return "Invalid event data: \(details)"
-            
+
         case .invalidUserID(let details):
             return "Invalid user ID: \(details)"
-            
+
         case .invalidProperties(let details):
             return "Invalid properties: \(details)"
-            
+
         case .clientNotInitialized:
             return "Client is not initialized"
-            
+
         case .clientAlreadyClosed:
             return "Client is already closed"
-            
+
         case .clientShuttingDown:
             return "Client is shutting down"
-            
+
         case .operationCancelled:
             return "Operation was cancelled"
-            
+
         case .batchingError(let reason):
             return "Batching error: \(reason.localizedDescription)"
-            
+
         case .queueFull(let currentSize, let maxSize):
             return "Queue is full (\(currentSize)/\(maxSize))"
-            
+
         case .flushTimeout(let duration):
             return "Flush operation timed out after \(duration)"
-            
+
         case .deviceContextError(let reason):
             return "Device context error: \(reason.localizedDescription)"
-            
+
         case .deviceContextUnavailable(let reason):
             return "Device context unavailable: \(reason)"
-            
+
         case .permissionDenied(let resource):
             return "Permission denied for: \(resource)"
-            
+
         case .storageError(let reason):
             return "Storage error: \(reason.localizedDescription)"
-            
+
         case .persistenceFailed(let details):
             return "Persistence failed: \(details)"
-            
+
         case .dataCorrupted(let details):
             return "Data corrupted: \(details)"
-            
+
         case .authenticationFailed(let reason):
             return "Authentication failed: \(reason)"
-            
+
         case .unauthorizedAccess(let resource):
             return "Unauthorized access to: \(resource)"
-            
+
         case .rateLimited(let retryAfter):
             if let retryAfter = retryAfter {
                 return "Rate limited. Retry after: \(retryAfter)"
             } else {
                 return "Rate limited"
             }
-            
+
         case .internalError(let details, let underlyingError):
             if let underlyingError = underlyingError {
                 return "Internal error: \(details). Underlying error: \(underlyingError.localizedDescription)"
             } else {
                 return "Internal error: \(details)"
             }
-            
+
         case .unexpectedState(let details):
             return "Unexpected state: \(details)"
-            
+
         case .resourceExhausted(let resource):
             return "Resource exhausted: \(resource)"
         }
     }
-    
+
     public var failureReason: String? {
         switch self {
         case .networkFailure(let reason):
@@ -477,7 +472,7 @@ extension NetworkFailureReason: LocalizedError {
             return "Too many redirects"
         }
     }
-    
+
     public var failureReason: String? {
         switch self {
         case .noConnection:
@@ -511,7 +506,7 @@ extension ProtocolErrorReason: LocalizedError {
             return "Encoding error: \(details)"
         }
     }
-    
+
     public var failureReason: String? {
         return "Protocol communication failed"
     }
@@ -532,7 +527,7 @@ extension BatchingErrorReason: LocalizedError {
             return "Concurrency conflict in batch processing"
         }
     }
-    
+
     public var failureReason: String? {
         return "Batch processing encountered an error"
     }
@@ -553,7 +548,7 @@ extension DeviceContextErrorReason: LocalizedError {
             return "Device context update failed: \(details)"
         }
     }
-    
+
     public var failureReason: String? {
         return "Device context collection failed"
     }
@@ -568,15 +563,13 @@ extension StorageErrorReason: LocalizedError {
             return "Storage access denied"
         case .corruptedData(let details):
             return "Corrupted data: \(details)"
-        case .migrationFailed(let details):
-            return "Data migration failed: \(details)"
         case .quotaExceeded(let used, let limit):
             return "Storage quota exceeded: \(used)/\(limit)"
         case .ioError(let details):
             return "I/O error: \(details)"
         }
     }
-    
+
     public var failureReason: String? {
         return "Storage operation failed"
     }
