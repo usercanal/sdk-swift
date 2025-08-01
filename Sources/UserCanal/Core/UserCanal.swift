@@ -122,7 +122,7 @@ public class UserCanal {
         initializationState = .ready
         await processQueuedEvents()
 
-        SDKLogger.info("SDK configured successfully - ENRICH-FIX-v2-20250801", category: .client)
+        SDKLogger.info("SDK configured successfully", category: .client)
     }
 
     /// Configure UserCanal with API key and optional settings (sync - fires and forgets)
@@ -229,14 +229,14 @@ public class UserCanal {
         }
 
         let propertiesInfo = event.properties.count > 0 ? ": \(Array(event.properties.keys).prefix(3).joined(separator: ", "))" : ""
-        SDKLogger.debug("Enriched with \(event.name.stringValue.replacingOccurrences(of: "_", with: " "))\(propertiesInfo) [ENRICH-FIX-v2]", category: .events)
-        SDKLogger.trace("Enrich method called with event type: \(event.eventType) (raw: \(event.eventType.rawValue))", category: .events)
+        SDKLogger.debug("Enriched with \(event.name.stringValue.replacingOccurrences(of: "_", with: " "))\(propertiesInfo)", category: .events)
+        SDKLogger.trace("Enrich event: \(event.name.stringValue)", category: .events)
 
         // If ready, process immediately
         if isReady {
             ensureSessionStarted()
             Task {
-                SDKLogger.trace("Calling eventWithType with event type: \(event.eventType) (raw: \(event.eventType.rawValue))", category: .events)
+
                 await self.client?.eventWithType(
                     userID: getCurrentUserID(),
                     eventName: event.name,
@@ -247,7 +247,7 @@ public class UserCanal {
         } else {
             // Queue the enrichment for later processing
             Task {
-                SDKLogger.trace("Queueing event with type: \(event.eventType) (raw: \(event.eventType.rawValue))", category: .events)
+                SDKLogger.trace("Queueing enrichment event", category: .events)
                 await eventQueue.enqueue(.event(eventType: event.eventType, eventName: event.name, properties: event.properties), maxSize: maxQueueSize)
             }
         }

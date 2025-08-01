@@ -163,7 +163,7 @@ public actor UserCanalClient {
         properties: Properties
     ) async {
         do {
-            SDKLogger.trace("trackEventWithType called with event type: \(eventType) (raw: \(eventType.rawValue))", category: .events)
+            SDKLogger.trace("Tracking event with type: \(eventType)", category: .events)
 
             guard state == .ready else {
                 SDKLogger.warning("Client not ready, dropping event", category: .client)
@@ -185,7 +185,7 @@ public actor UserCanalClient {
                 generateId: config.generateEventIds
             )
 
-            SDKLogger.trace("Created event with type: \(event.eventType) (raw: \(event.eventType.rawValue))", category: .events)
+
 
             // Enrich with device context if enabled
             event = await enrichEventWithDeviceContext(event)
@@ -864,6 +864,7 @@ public actor UserCanalClient {
             id: event.id.isEmpty ? nil : event.id,
             userID: event.userID,
             name: event.name,
+            eventType: event.eventType,
             properties: enrichedProperties,
             timestamp: event.timestamp,
             generateId: !event.id.isEmpty

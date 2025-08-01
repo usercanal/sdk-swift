@@ -242,30 +242,9 @@ public actor NetworkClient {
         let frame = createFrame(for: data)
 
         SDKLogger.trace("Sending batch: \(data.count) bytes", category: .network)
-        print("🔍 NetworkClient: About to send \(data.count) bytes to \(endpoint)")
-        print("🔍 NetworkClient: Connection state: \(connection.state)")
 
-        // Dump complete binary data for debugging
-        print("📊 SWIFT SDK BINARY DUMP - COMPLETE FRAME:")
-        print("📊 Frame size: \(frame.count) bytes")
-        print("📊 Length prefix (first 4 bytes): \(frame.prefix(4).map { String(format: "%02x", $0) }.joined(separator: " "))")
-        print("📊 Payload size: \(data.count) bytes")
 
-        // Dump first 64 bytes of frame in chunks of 16
-        let dumpSize = min(64, frame.count)
-        for i in stride(from: 0, to: dumpSize, by: 16) {
-            let end = min(i + 16, dumpSize)
-            let chunk = frame[i..<end]
-            let hex = chunk.map { String(format: "%02x", $0) }.joined(separator: " ")
-            let ascii = chunk.map { $0 >= 32 && $0 <= 126 ? String(Character(UnicodeScalar($0))) : "." }.joined()
-            print("📊 \(String(format: "%04x", i)): \(hex.padding(toLength: 47, withPad: " ", startingAt: 0)) |\(ascii)|")
-        }
 
-        if frame.count > 64 {
-            print("📊 ... (\(frame.count - 64) more bytes)")
-        }
-
-        print("🔍 NetworkClient: First 16 bytes: \(data.prefix(16).map { String(format: "%02x", $0) }.joined(separator: " "))")
 
         return try await withCheckedThrowingContinuation { continuation in
             connection.send(
