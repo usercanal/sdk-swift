@@ -3,7 +3,6 @@
 // swiftformat:disable all
 
 import FlatBuffers
-import Common
 
 ///  Schema types for routing and streaming
 ///  Used by the collector to determine how to process incoming data
@@ -83,3 +82,4 @@ public struct schema_common_Batch: FlatBufferObject, Verifiable {
     _v.finish()
   }
 }
+

@@ -3,7 +3,6 @@
 // swiftformat:disable all
 
 import FlatBuffers
-import Common
 
 ///  Log severity levels (RFC 5424 syslog standard + TRACE)
 public enum schema_log_LogLevel: UInt8, Enum, Verifiable {
@@ -152,3 +151,4 @@ public struct schema_log_LogData: FlatBufferObject, Verifiable {
     _v.finish()
   }
 }
+

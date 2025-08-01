@@ -3,7 +3,6 @@
 // swiftformat:disable all
 
 import FlatBuffers
-import Common
 
 ///  Event types for different processing paths
 ///  Optimized to uint8 for memory efficiency (was uint32)
@@ -125,3 +124,4 @@ public struct schema_event_EventData: FlatBufferObject, Verifiable {
     _v.finish()
   }
 }
+
