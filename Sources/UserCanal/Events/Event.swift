@@ -6,6 +6,18 @@
 
 import Foundation
 
+// MARK: - Event Types for CDP
+
+/// Event types for different processing paths in the CDP
+public enum EventType: UInt8, Sendable, CaseIterable, Codable {
+    case unknown = 0
+    case track = 1      // User action tracking (page views, clicks, etc.)
+    case identify = 2   // User identification/traits updates
+    case group = 3      // Group membership/traits updates
+    case alias = 4      // Identity resolution/user merging
+    case enrich = 5     // Generic entity enrichment
+}
+
 // MARK: - Event
 
 /// Represents a tracking event in the UserCanal system
@@ -22,6 +34,9 @@ public struct Event: Sendable {
     /// Event name/type
     public let name: EventName
 
+    /// Event type for CDP processing
+    public let eventType: EventType
+
     /// Additional properties/metadata for the event
     public let properties: Properties
 
@@ -32,32 +47,38 @@ public struct Event: Sendable {
 
     /// Create a new event
     public init(
-        id: String = UUID().uuidString,
+        id: String? = nil,
         userID: String,
         name: EventName,
+        eventType: EventType = .track,
         properties: Properties = Properties(),
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        generateId: Bool = true
     ) {
-        self.id = id
+        self.id = id ?? (generateId ? UUID().uuidString : "")
         self.userID = userID
         self.name = name
+        self.eventType = eventType
         self.properties = properties
         self.timestamp = timestamp
     }
 
     /// Create an event with property builder
     public init(
-        id: String = UUID().uuidString,
+        id: String? = nil,
         userID: String,
         name: EventName,
+        eventType: EventType = .track,
+        @PropertiesBuilder properties: () -> Properties,
         timestamp: Date = Date(),
-        properties: () -> Properties
+        generateId: Bool = true
     ) {
-        self.id = id
+        self.id = id ?? (generateId ? UUID().uuidString : "")
         self.userID = userID
         self.name = name
-        self.timestamp = timestamp
+        self.eventType = eventType
         self.properties = properties()
+        self.timestamp = timestamp
     }
 }
 
@@ -301,9 +322,7 @@ extension Event {
             throw UserCanalError.validationError(field: "eventName", reason: "Event name cannot be empty")
         }
 
-        guard !id.isEmpty else {
-            throw UserCanalError.validationError(field: "id", reason: "Event ID cannot be empty")
-        }
+        // Event ID is optional and can be part of the payload - no validation required
     }
 }
 
@@ -388,7 +407,7 @@ extension Product: Codable {}
 
 extension Event: CustomStringConvertible {
     public var description: String {
-        return "Event(id: \(id), userID: \(userID), name: \(name.stringValue), timestamp: \(timestamp))"
+        return "Event(id: \(id), userID: \(userID), name: \(name.stringValue), type: \(eventType), timestamp: \(timestamp))"
     }
 }
 

@@ -41,9 +41,6 @@ public actor NetworkClient {
     /// Connection monitoring
     private var pathMonitor: NWPathMonitor?
 
-    /// Health check timer
-    private var healthCheckTimer: Task<Void, Never>?
-
     /// Last successful operation time
     private var lastSuccessTime: Date = Date()
 
@@ -121,12 +118,7 @@ public actor NetworkClient {
         self.pathMonitor = NWPathMonitor()
         self.pathMonitor?.start(queue: queue)
 
-        // Start health check monitoring
-        Task {
-            await startHealthCheckMonitoring()
-        }
-
-        SDKLogger.info("NetworkClient initialized for endpoint: \(endpoint)", category: .network)
+        SDKLogger.trace("NetworkClient initialized for endpoint: \(endpoint)", category: .network)
     }
 
     // MARK: - Connection Management
@@ -141,7 +133,7 @@ public actor NetworkClient {
         state = .connecting
         stats.incrementConnectionAttempts()
 
-        SDKLogger.info("Connecting to \(endpoint)", category: .network)
+        SDKLogger.trace("Connecting to \(endpoint)", category: .network)
 
         return try await withCheckedThrowingContinuation { continuation in
             let connection = NWConnection(to: endpoint, using: parameters)
@@ -178,20 +170,20 @@ public actor NetworkClient {
         case .ready:
             state = .connected
             stats.setLastConnectedTime(Date())
-            SDKLogger.info("Connection established", category: .network)
+            SDKLogger.trace("Connection established", category: .network)
         case .failed(let error):
             state = .failed(error)
             stats.incrementConnectionFailures()
             SDKLogger.error("Connection failed", error: error, category: .network)
         case .cancelled:
             state = .disconnected
-            SDKLogger.info("Connection cancelled", category: .network)
+            // Don't log cancellation during normal disconnect - it's confusing
         case .waiting(let error):
-            SDKLogger.warning("Connection waiting: \(error)", category: .network)
+            SDKLogger.warning("Connection failed: \(error)", category: .network)
         case .preparing:
-            SDKLogger.debug("Connection preparing", category: .network)
+            break // Too verbose for debug
         case .setup:
-            SDKLogger.debug("Connection setup", category: .network)
+            break // Too verbose for debug
         @unknown default:
             SDKLogger.warning("Unknown connection state: \(newState)", category: .network)
         }
@@ -201,7 +193,7 @@ public actor NetworkClient {
     public func disconnect() async {
         guard let connection = connection else { return }
 
-        SDKLogger.info("Disconnecting from server", category: .network)
+        // Disconnect silently - not needed for debug
 
         connection.cancel()
         self.connection = nil
@@ -211,27 +203,6 @@ public actor NetworkClient {
     /// Check if connected
     public var isConnected: Bool {
         return state == .connected && connection?.state == .ready
-    }
-
-    /// Start health check monitoring
-    private func startHealthCheckMonitoring() {
-        healthCheckTimer = Task {
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(30)) // Health check every 30 seconds
-
-                    if isConnected {
-                        let isHealthy = await healthCheck()
-                        if !isHealthy {
-                            SDKLogger.warning("Health check failed, attempting reconnection", category: .network)
-                            await attemptReconnection()
-                        }
-                    }
-                } catch {
-                    break // Task was cancelled
-                }
-            }
-        }
     }
 
     /// Enhanced connection with pool management
@@ -270,7 +241,7 @@ public actor NetworkClient {
         // Create length-prefixed frame
         let frame = createFrame(for: data)
 
-        SDKLogger.debug("Sending batch: \(data.count) bytes", category: .network)
+        SDKLogger.trace("Sending batch: \(data.count) bytes", category: .network)
         print("🔍 NetworkClient: About to send \(data.count) bytes to \(endpoint)")
         print("🔍 NetworkClient: Connection state: \(connection.state)")
 
@@ -286,7 +257,7 @@ public actor NetworkClient {
             let end = min(i + 16, dumpSize)
             let chunk = frame[i..<end]
             let hex = chunk.map { String(format: "%02x", $0) }.joined(separator: " ")
-            let ascii = chunk.map { $0 >= 32 && $0 <= 126 ? String(Character(UnicodeScalar($0) ?? UnicodeScalar(46)!)) : "." }.joined()
+            let ascii = chunk.map { $0 >= 32 && $0 <= 126 ? String(Character(UnicodeScalar($0))) : "." }.joined()
             print("📊 \(String(format: "%04x", i)): \(hex.padding(toLength: 47, withPad: " ", startingAt: 0)) |\(ascii)|")
         }
 
@@ -344,106 +315,29 @@ public actor NetworkClient {
         lastSuccessTime = Date()
 
         print("📡 NetworkClient: Batch transmission confirmed: \(frameSize) bytes")
-        SDKLogger.debug("Batch sent successfully: \(frameSize) bytes", category: .network)
+        // Batch sent details are logged by BatchManager with item counts
     }
 
     /// Handle send error
-    private func handleSendError(_ error: any Error) {
+    private func handleSendError(_ error: any Error) async {
         stats.incrementSendFailures()
         stats.setLastFailureTime(Date())
 
         SDKLogger.error("Failed to send batch", error: error, category: .network)
 
-        // Trigger reconnection for certain errors
-        if let nwError = error as? NWError, shouldReconnectForError(nwError) {
-            Task {
-                await attemptReconnection()
-            }
-        }
+        // Disconnect on error to ensure clean state for next attempt
+        await disconnect()
+        SDKLogger.debug("Disconnected after send failure", category: .network)
     }
 
-    /// Check if error should trigger reconnection
-    private func shouldReconnectForError(_ error: NWError) -> Bool {
-        switch error {
-        case .posix(let posixError):
-            return posixError == .ECONNRESET || posixError == .EPIPE || posixError == .ENOTCONN
-        case .dns:
-            return true
-        default:
-            return false
-        }
-    }
-
-    // MARK: - Retry Logic
-
-    /// Attempt reconnection with exponential backoff
-    private func attemptReconnection() async {
-        guard state != .connecting else { return }
-
-        var attempt = 0
-        let maxAttempts = retryConfig.maxAttempts
-
-        while attempt < maxAttempts {
-            attempt += 1
-
-            let delay = retryConfig.calculateDelay(for: attempt)
-            SDKLogger.info("Reconnection attempt \(attempt)/\(maxAttempts) in \(delay)s", category: .network)
-
-            try? await Task.sleep(for: .seconds(delay))
-
-            do {
-                await disconnect()
-                try await connect()
-                SDKLogger.info("Reconnection successful after \(attempt) attempts", category: .network)
-                return
-            } catch {
-                SDKLogger.warning("Reconnection attempt \(attempt) failed: \(error)", category: .network)
-
-                if attempt == maxAttempts {
-                    SDKLogger.error("All reconnection attempts failed", category: .network)
-                    state = .failed(error)
-                }
-            }
-        }
-    }
-
-    // MARK: - Health Check
-
-    /// Perform comprehensive connection health check
-    public func healthCheck() async -> Bool {
-        guard isConnected, let connection = connection else {
-            return false
+    /// Connect only when needed for sending data
+    public func connectIfNeeded() async throws {
+        guard state != .connected else {
+            SDKLogger.debug("Connection already established, reusing", category: .network)
+            return
         }
 
-        // Check connection state
-        guard connection.state == .ready else {
-            SDKLogger.debug("Health check failed: connection not ready", category: .network)
-            return false
-        }
-
-        // Check if we've had recent successful operations
-        let timeSinceLastSuccess = Date().timeIntervalSince(lastSuccessTime)
-        if timeSinceLastSuccess > 300 { // 5 minutes without success
-            SDKLogger.warning("Health check: No successful operations in \(timeSinceLastSuccess)s", category: .network)
-            return false
-        }
-
-        // Advanced health check: try to detect if connection is actually usable
-        return await performAdvancedHealthCheck(connection: connection)
-    }
-
-    /// Perform advanced health check by testing connection usability
-    private func performAdvancedHealthCheck(connection: NWConnection) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            // Try to get connection metadata which requires active connection
-            let metadata = connection.metadata(definition: NWProtocolTCP.definition)
-            if metadata != nil {
-                continuation.resume(returning: true)
-            } else {
-                SDKLogger.debug("Advanced health check failed: no TCP metadata", category: .network)
-                continuation.resume(returning: false)
-            }
-        }
+        try await connect()
     }
 
     // MARK: - Statistics
@@ -457,11 +351,7 @@ public actor NetworkClient {
 
     /// Close the network client
     public func close() async {
-        SDKLogger.info("Closing network client", category: .network)
-
-        // Cancel health check timer
-        healthCheckTimer?.cancel()
-        healthCheckTimer = nil
+        SDKLogger.debug("Closing network client", category: .network)
 
         // Close all pooled connections
         for pooledConnection in connectionPool {
@@ -536,8 +426,6 @@ public struct NetworkStats: Sendable {
     public private(set) var lastConnectedTime: Date?
     public private(set) var lastSendTime: Date?
     public private(set) var lastFailureTime: Date?
-    public private(set) var healthCheckCount: Int = 0
-    public private(set) var healthCheckFailures: Int = 0
     public private(set) var reconnectionCount: Int = 0
 
     /// Connection success rate
@@ -551,12 +439,6 @@ public struct NetworkStats: Sendable {
         let totalSends = batchesSent + sendFailures
         guard totalSends > 0 else { return 0.0 }
         return Double(batchesSent) / Double(totalSends)
-    }
-
-    /// Health check success rate
-    public var healthCheckSuccessRate: Double {
-        guard healthCheckCount > 0 else { return 0.0 }
-        return Double(healthCheckCount - healthCheckFailures) / Double(healthCheckCount)
     }
 
     fileprivate mutating func incrementConnectionAttempts() {
@@ -591,17 +473,7 @@ public struct NetworkStats: Sendable {
         lastFailureTime = time
     }
 
-    fileprivate mutating func incrementHealthCheckCount() {
-        healthCheckCount += 1
-    }
 
-    fileprivate mutating func incrementHealthCheckFailures() {
-        healthCheckFailures += 1
-    }
-
-    fileprivate mutating func incrementReconnectionCount() {
-        reconnectionCount += 1
-    }
 
     /// Connection uptime since last connection
     public var connectionUptime: TimeInterval? {
@@ -615,16 +487,7 @@ public struct NetworkStats: Sendable {
         return Double(bytesSent) / Double(batchesSent)
     }
 
-    fileprivate mutating func recordHealthCheck(success: Bool) {
-        healthCheckCount += 1
-        if !success {
-            healthCheckFailures += 1
-        }
-    }
 
-    fileprivate mutating func recordReconnection() {
-        reconnectionCount += 1
-    }
 }
 
 // MARK: - Helper Classes

@@ -32,12 +32,7 @@ let package = Package(
             path: "Sources/UserCanal",
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency"),
-                .enableUpcomingFeature("BareSlashRegexLiterals"),
-                .enableUpcomingFeature("ConciseMagicFile"),
-                .enableUpcomingFeature("ExistentialAny"),
-                .enableUpcomingFeature("ForwardTrailingClosures"),
-                .enableUpcomingFeature("ImplicitOpenExistentials"),
-                .enableUpcomingFeature("DisableOutwardActorInference")
+                .enableUpcomingFeature("ExistentialAny")
             ]
         ),
         .testTarget(
@@ -46,12 +41,7 @@ let package = Package(
             path: "Tests/UserCanalTests",
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency"),
-                .enableUpcomingFeature("BareSlashRegexLiterals"),
-                .enableUpcomingFeature("ConciseMagicFile"),
-                .enableUpcomingFeature("ExistentialAny"),
-                .enableUpcomingFeature("ForwardTrailingClosures"),
-                .enableUpcomingFeature("ImplicitOpenExistentials"),
-                .enableUpcomingFeature("DisableOutwardActorInference")
+                .enableUpcomingFeature("ExistentialAny")
             ]
         ),
     ]

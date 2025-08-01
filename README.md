@@ -8,17 +8,17 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-A high-performance, type-safe Swift SDK for analytics events and structured logging. Built with Swift 6 concurrency and optimized for iOS, macOS, and other Apple platforms.
+A high-performance, type-safe Swift SDK for analytics events and structured logging.
 
 ## Features
 
-- **🚀 Fire & Forget Interface**: Simple tracking with automatic batching
-- **📊 Rich Analytics**: Events, revenue tracking, user identification, and groups  
-- **📝 Structured Logging**: High-performance binary logging with multiple severity levels
-- **🔄 Session Management**: Automatic user session handling with device context
-- **⚡ Optimized Performance**: Actor-based architecture with efficient batching
-- **🛡️ Type Safety**: Strongly typed events and properties
-- **🔧 Configurable**: Flexible configuration for different environments
+- **Fire & Forget Interface**: Simple tracking with automatic batching
+- **Rich Analytics**: Events, revenue tracking, user identification, and groups
+- **Structured Logging**: High-performance binary logging with multiple severity levels
+- **Session Management**: Automatic user session handling with device context
+- **Optimized Performance**: Actor-based architecture with efficient batching
+- **Type Safety**: Strongly typed events and properties
+- **Configurable**: Flexible configuration for different environments
 
 ## Installation
 
@@ -47,7 +47,7 @@ Configure the SDK once at app startup:
 import UserCanal
 
 // In your App.swift or AppDelegate
-UserCanalSDK.shared.configure(
+UserCanal.shared.configure(
     apiKey: "YOUR_API_KEY",
     onError: { error in
         print("Analytics error: \(error)")
@@ -61,20 +61,20 @@ Track user actions with the fire & forget interface:
 
 ```swift
 // Track predefined events
-UserCanalSDK.shared.track(.userSignedUp, properties: [
+UserCanal.shared.track(.userSignedUp, properties: [
     "signup_method": "email",
     "referral_source": "google"
 ])
 
 // Track custom events
-UserCanalSDK.shared.track("video_watched", properties: [
+UserCanal.shared.track("video_watched", properties: [
     "video_id": "123",
     "duration": 120,
     "quality": "hd"
 ])
 
 // User identification
-UserCanalSDK.shared.identify("user_123", traits: [
+UserCanal.shared.identify("user_123", traits: [
     "email": "user@example.com",
     "plan": "premium",
     "signup_date": Date()
@@ -86,9 +86,9 @@ UserCanalSDK.shared.identify("user_123", traits: [
 Track purchases and subscriptions:
 
 ```swift
-UserCanalSDK.shared.eventRevenue(
+UserCanal.shared.eventRevenue(
     amount: 9.99,
-    currency: .USD,
+    currency: .usd,
     orderID: "order_456",
     properties: [
         "product_id": "premium_plan",
@@ -103,31 +103,40 @@ Application logging with multiple severity levels:
 
 ```swift
 // Simple logging
-UserCanalSDK.shared.logInfo("User completed onboarding")
+UserCanal.shared.logInfo("User completed onboarding")
 
-UserCanalSDK.shared.logError("Payment failed", data: [
+UserCanal.shared.logError("Payment failed", data: [
     "error_code": "card_declined",
     "user_id": "123",
     "amount": 9.99
 ])
 
 // Custom service logging
-UserCanalSDK.shared.log(.warning, "Cache miss rate high", service: "cache", data: [
+UserCanal.shared.log(.warning, "Cache miss rate high", service: "cache", data: [
     "hit_ratio": 0.65,
     "threshold": 0.80
 ])
 ```
+
+### Privacy Controls
+
+User privacy controls with `optOut()`, `optIn()`, and `isOptedOut()` methods - events are dropped locally without server round-trips, and you can configure `defaultOptOut: true` for privacy-first setups.
+
+### Event IDs
+
+Client-side unique event IDs are disabled by default to save ~50 bytes per event. Enable with `generateEventIds: true` if you need individual event deduplication or tracking.
 
 ## Advanced Usage
 
 ### Configuration Options
 
 ```swift
-UserCanalSDK.shared.configure(
+UserCanal.shared.configure(
     apiKey: "YOUR_API_KEY",
     endpoint: "collect.usercanal.com:50000",  // Custom endpoint
     batchSize: 100,                           // Events per batch
     flushInterval: 30.0,                      // Seconds between flushes
+    generateEventIds: true,                   // Enable client-side event IDs
     deviceContextRefresh: 24 * 60 * 60,      // Device context refresh interval
     onError: { error in
         // Handle errors
@@ -140,7 +149,7 @@ UserCanalSDK.shared.configure(
 Associate users with organizations or teams:
 
 ```swift
-UserCanalSDK.shared.group("org_123", properties: [
+UserCanal.shared.group("org_123", properties: [
     "organization_name": "Acme Corp",
     "plan": "enterprise",
     "seat_count": 50
@@ -153,13 +162,13 @@ The SDK automatically manages user sessions:
 
 ```swift
 // Anonymous tracking (automatic)
-UserCanalSDK.shared.track(.screenViewed, properties: ["screen": "home"])
+UserCanal.shared.track(.pageViewed, properties: ["screen": "home"])
 
 // User registers - automatic session merging
-UserCanalSDK.shared.identify("user_123", traits: ["email": "user@example.com"])
+UserCanal.shared.identify("user_123", traits: ["email": "user@example.com"])
 
 // User logout - reset to anonymous
-UserCanalSDK.shared.reset()
+UserCanal.shared.reset()
 ```
 
 ### Manual Control
@@ -168,7 +177,7 @@ For critical moments, you can manually flush events:
 
 ```swift
 // Ensure events are sent before app termination
-await UserCanalSDK.shared.flush()
+await UserCanal.shared.flush()
 ```
 
 ## SwiftUI Integration
@@ -183,7 +192,7 @@ struct ContentView: View {
                 Button("Purchase Premium") {
                     handlePurchase()
                 }
-                
+
                 NavigationLink("Settings") {
                     SettingsView()
                 }
@@ -191,24 +200,24 @@ struct ContentView: View {
         }
         .task {
             // Track screen view
-            UserCanalSDK.shared.track(.screenViewed, properties: [
+            UserCanal.shared.track(.pageViewed, properties: [
                 "screen_name": "home"
             ])
         }
     }
-    
+
     private func handlePurchase() {
         // Track button tap
-        UserCanalSDK.shared.track(.buttonTapped, properties: [
+        UserCanal.shared.track(.buttonTapped, properties: [
             "button": "purchase_premium",
             "screen": "home"
         ])
-        
+
         // Process purchase...
         // Track revenue
-        UserCanalSDK.shared.eventRevenue(
+        UserCanal.shared.eventRevenue(
             amount: 9.99,
-            currency: .USD,
+            currency: .usd,
             orderID: UUID().uuidString
         )
     }
@@ -221,36 +230,74 @@ struct ContentView: View {
 
 ```swift
 // Configuration
-UserCanalSDK.shared.configure(apiKey:onError:)
+UserCanal.shared.configure(apiKey:onError:)
 
 // Event Tracking
-UserCanalSDK.shared.track(_:properties:)
-UserCanalSDK.shared.eventRevenue(amount:currency:orderID:properties:)
+UserCanal.shared.track(_:properties:)
+UserCanal.shared.eventRevenue(amount:currency:orderID:properties:)
 
-// User Management  
-UserCanalSDK.shared.identify(_:traits:)
-UserCanalSDK.shared.group(_:properties:)
-UserCanalSDK.shared.reset()
+// User Management
+UserCanal.shared.identify(_:traits:)
+UserCanal.shared.group(_:properties:)
+UserCanal.shared.reset()
 
 // Logging
-UserCanalSDK.shared.log(_:_:service:data:)
-UserCanalSDK.shared.logInfo(_:service:data:)
-UserCanalSDK.shared.logError(_:service:data:)
+UserCanal.shared.log(_:_:service:data:)
+UserCanal.shared.logInfo(_:service:data:)
+UserCanal.shared.logError(_:service:data:)
 
 // Lifecycle
-await UserCanalSDK.shared.flush()
+await UserCanal.shared.flush()
 ```
 
 ### Predefined Events
 
-The SDK includes common event constants:
+The SDK includes comprehensive event constants organized by category:
+
+**Authentication & User Management**
+```swift
+.userSignedUp, .userSignedIn, .userSignedOut, .userInvited, .userOnboarded
+.authenticationFailed, .passwordReset, .twoFactorEnabled, .twoFactorDisabled
+```
+
+**Revenue & Billing**
+```swift
+.orderCompleted, .orderRefunded, .orderCanceled, .paymentFailed
+.paymentMethodAdded, .paymentMethodUpdated, .paymentMethodRemoved
+```
+
+**Subscription Management**
+```swift
+.subscriptionStarted, .subscriptionRenewed, .subscriptionPaused
+.subscriptionResumed, .subscriptionChanged, .subscriptionCanceled
+```
+
+**Product Engagement**
+```swift
+.pageViewed, .featureUsed, .searchPerformed, .fileUploaded
+.notificationSent, .notificationClicked, .buttonTapped
+```
+
+**Session & Error Events**
+```swift
+.sessionStarted, .sessionEnded, .appLaunched, .appBackgrounded
+.errorOccurred, .crashDetected, .performanceIssue
+```
+
+### Log Levels
+
+Following RFC 5424 standard with additional trace level:
 
 ```swift
-.userSignedUp, .userLoggedIn, .userLoggedOut
-.screenViewed, .screenInteraction
-.featureUsed, .buttonTapped
-.contentViewed, .contentShared
-.subscriptionPurchased, .subscriptionCancelled
+.emergency  // System is unusable
+.alert      // Action must be taken immediately
+.critical   // Critical conditions
+.error      // Error conditions
+.warning    // Warning conditions
+.notice     // Normal but significant condition
+.info       // Informational messages
+.debug      // Debug-level messages
+.trace      // Detailed trace information
 ```
 
 ### Properties
@@ -258,7 +305,7 @@ The SDK includes common event constants:
 All events and logs accept structured properties:
 
 ```swift
-UserCanalSDK.shared.track(.featureUsed, properties: [
+UserCanal.shared.track(.featureUsed, properties: [
     "feature_name": "data_export",
     "export_format": "csv",
     "file_size_mb": 15.7,
@@ -273,37 +320,16 @@ The `examples/` directory contains complete sample applications:
 
 - **`examples/event/simple/`** - Basic event tracking
 - **`examples/event/advanced/`** - Revenue, identification, groups
-- **`examples/log/simple/`** - Basic application logging  
+- **`examples/log/simple/`** - Basic application logging
 - **`examples/log/advanced/`** - Structured logging patterns
+- **`examples/privacy-controls/`** - Opt-out/opt-in functionality
 
-Run an example:
-
-```bash
-cd examples/event/simple
-swift run
-```
 
 ## Requirements
 
 - iOS 16.0+ / macOS 13.0+ / visionOS 1.0+
 - Swift 6.0+
 - Xcode 16.0+
-
-## Performance
-
-- **Memory efficient**: <10MB footprint
-- **Battery optimized**: Intelligent batching and background processing
-- **High throughput**: Supports 1000+ events/minute
-- **Reliable delivery**: Automatic retry with exponential backoff
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass: `swift test`
-6. Submit a pull request
 
 ## License
 

@@ -12,20 +12,17 @@ struct AdvancedEventExample {
     static func main() async {
         print("🚀 UserCanal Swift SDK - Advanced Event Tracking (New Interface)")
 
-        // Configure with advanced options
-        UserCanal.shared.configure(
+        // Configure with advanced options - fire and forget
+        UserCanal.shared.configureAsync(
             apiKey: "YOUR_API_KEY",
             endpoint: "collect.usercanal.com:50000",
             batchSize: 100,
-            flushInterval: 5.0,
-            deviceContextRefresh: 12 * 60 * 60, // 12 hours instead of default 24
-            onError: { error in
-                print("🚨 Analytics error: \(error)")
-            }
+            flushInterval: 5,
+            logLevel: .debug
         )
 
         // Wait for initialization
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        try? await Task.sleep(for: .seconds(1))
 
         print("📊 Starting advanced tracking scenarios...")
 

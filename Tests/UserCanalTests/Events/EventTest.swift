@@ -115,13 +115,14 @@ final class EventTest: XCTestCase {
         let event = Event(
             userID: "builder-user",
             name: EventName("builder_event"),
+            properties: {
+                Properties([
+                    "built_prop": "builder_value",
+                    "built_count": 1
+                ])
+            },
             timestamp: Date()
-        ) {
-            Properties([
-                "built_prop": "builder_value",
-                "built_count": 1
-            ])
-        }
+        )
 
         XCTAssertEqual(event.userID, "builder-user")
         XCTAssertEqual(event.name.stringValue, "builder_event")

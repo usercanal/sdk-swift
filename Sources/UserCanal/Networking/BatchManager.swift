@@ -20,20 +20,11 @@ public actor BatchManager {
     /// Network client for sending batches
     private let networkClient: NetworkClient
 
-    /// Event queue
+    /// Unified event queue for all event types (TRACK, IDENTIFY, GROUP, ALIAS, ENRICH)
     private var eventQueue: [Event] = []
 
-    /// Log queue
+    /// Log queue (separate schema)
     private var logQueue: [LogEntry] = []
-
-    /// Identity queue
-    private var identityQueue: [Identity] = []
-
-    /// Group queue
-    private var groupQueue: [GroupInfo] = []
-
-    /// Revenue queue
-    private var revenueQueue: [Revenue] = []
 
     /// Timer for auto-flush
     private var flushTimer: Task<Void, Never>?
@@ -58,7 +49,7 @@ public actor BatchManager {
 
     public func addEvent(_ event: Event) async throws {
         eventQueue.append(event)
-        SDKLogger.debug("Added event to queue. Queue size: \(eventQueue.count)", category: .batching)
+        SDKLogger.trace("Event queued (batch size: \(eventQueue.count))", category: .batching)
 
         // Check if we should flush based on batch size
         if shouldFlushBasedOnSize() {
@@ -68,34 +59,7 @@ public actor BatchManager {
 
     public func addLog(_ log: LogEntry) async throws {
         logQueue.append(log)
-        SDKLogger.debug("Added log to queue. Queue size: \(logQueue.count)", category: .batching)
-
-        if shouldFlushBasedOnSize() {
-            try await performFlush()
-        }
-    }
-
-    public func addIdentity(_ identity: Identity) async throws {
-        identityQueue.append(identity)
-        SDKLogger.debug("Added identity to queue. Queue size: \(identityQueue.count)", category: .batching)
-
-        if shouldFlushBasedOnSize() {
-            try await performFlush()
-        }
-    }
-
-    public func addGroup(_ group: GroupInfo) async throws {
-        groupQueue.append(group)
-        SDKLogger.debug("Added group to queue. Queue size: \(groupQueue.count)", category: .batching)
-
-        if shouldFlushBasedOnSize() {
-            try await performFlush()
-        }
-    }
-
-    public func addRevenue(_ revenue: Revenue) async throws {
-        revenueQueue.append(revenue)
-        SDKLogger.debug("Added revenue to queue. Queue size: \(revenueQueue.count)", category: .batching)
+        SDKLogger.trace("Log queued (batch size: \(logQueue.count))", category: .batching)
 
         if shouldFlushBasedOnSize() {
             try await performFlush()
@@ -114,18 +78,15 @@ public actor BatchManager {
     // MARK: - Private Methods
 
     private func shouldFlushBasedOnSize() -> Bool {
-        let totalItems = eventQueue.count + logQueue.count + identityQueue.count + groupQueue.count + revenueQueue.count
+        let totalItems = eventQueue.count + logQueue.count
         return totalItems >= config.batchSize
     }
 
     private func performFlush() async throws {
-        guard !eventQueue.isEmpty || !logQueue.isEmpty || !identityQueue.isEmpty || !groupQueue.isEmpty || !revenueQueue.isEmpty else {
+        guard !eventQueue.isEmpty || !logQueue.isEmpty else {
             SDKLogger.debug("No items to flush", category: .batching)
             return
         }
-
-        let totalItems = eventQueue.count + logQueue.count + identityQueue.count + groupQueue.count + revenueQueue.count
-        SDKLogger.info("Flushing batch with \(totalItems) items", category: .batching)
 
         // Send events if we have any
         if !eventQueue.isEmpty {
@@ -134,9 +95,11 @@ public actor BatchManager {
                 eventQueue.removeAll()
 
                 let eventBatch = try FlatBuffersProtocol.createEventBatch(events: events, apiKey: apiKey)
+                try await networkClient.connectIfNeeded()
                 try await networkClient.sendBatch(eventBatch)
+                await networkClient.disconnect()
 
-                SDKLogger.info("Successfully sent \(events.count) events (\(eventBatch.count) bytes)", category: .batching)
+                SDKLogger.debug("Sent batch: \(eventBatch.count) bytes with \(events.count) events", category: .batching)
             } catch {
                 SDKLogger.error("Failed to send event batch", error: error, category: .batching)
                 throw error
@@ -150,34 +113,21 @@ public actor BatchManager {
                 logQueue.removeAll()
 
                 let logBatch = try FlatBuffersProtocol.createLogBatch(logs: logs, apiKey: apiKey)
+                try await networkClient.connectIfNeeded()
                 try await networkClient.sendBatch(logBatch)
+                await networkClient.disconnect()
 
-                SDKLogger.info("Successfully sent \(logs.count) logs (\(logBatch.count) bytes)", category: .batching)
+                SDKLogger.debug("Sent batch: \(logBatch.count) bytes with \(logs.count) logs", category: .batching)
             } catch {
                 SDKLogger.error("Failed to send log batch", error: error, category: .batching)
                 throw error
             }
         }
 
-        // For now, just clear other queues (identity, group, revenue)
-        // TODO: Implement proper serialization for these types
-        if !identityQueue.isEmpty {
-            SDKLogger.info("Clearing \(identityQueue.count) identity items (not yet implemented)", category: .batching)
-            identityQueue.removeAll()
-        }
 
-        if !groupQueue.isEmpty {
-            SDKLogger.info("Clearing \(groupQueue.count) group items (not yet implemented)", category: .batching)
-            groupQueue.removeAll()
-        }
-
-        if !revenueQueue.isEmpty {
-            SDKLogger.info("Clearing \(revenueQueue.count) revenue items (not yet implemented)", category: .batching)
-            revenueQueue.removeAll()
-        }
 
         lastFlushTime = Date()
-        SDKLogger.debug("Batch flush completed", category: .batching)
+        SDKLogger.trace("Batch flush completed", category: .batching)
     }
 
     private func startFlushTimer() {
@@ -206,10 +156,9 @@ public actor BatchManager {
         let flushIntervalSeconds = Double(config.flushInterval.components.seconds)
 
         if timeSinceLastFlush >= flushIntervalSeconds {
-            let totalItems = eventQueue.count + logQueue.count + identityQueue.count + groupQueue.count + revenueQueue.count
+            let totalItems = eventQueue.count + logQueue.count
 
             if totalItems > 0 {
-                SDKLogger.debug("Timer-based flush triggered with \(totalItems) items", category: .batching)
                 try await performFlush()
             }
         }

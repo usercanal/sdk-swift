@@ -13,7 +13,7 @@ final class PackageTests: XCTestCase {
     // MARK: - Version Tests
 
     func testSDKVersion() {
-        let version = UserCanal.version
+        let version = Version.version
 
         XCTAssertFalse(version.isEmpty, "SDK version should not be empty")
 
@@ -34,8 +34,8 @@ final class PackageTests: XCTestCase {
     }
 
     func testVersionConsistency() {
-        let version1 = UserCanal.version
-        let version2 = UserCanal.version
+        let version1 = Version.version
+        let version2 = Version.version
 
         XCTAssertEqual(version1, version2, "Version should be consistent across calls")
     }
@@ -44,19 +44,49 @@ final class PackageTests: XCTestCase {
 
     func testSDKMetadata() {
         // Test that we can access basic SDK information
-        let version = UserCanal.version
+        let version = Version.version
         XCTAssertFalse(version.isEmpty)
 
-        // These properties might not exist yet, so we test conditionally
-        if let sdkName = UserCanal.sdkName {
-            XCTAssertFalse(sdkName.isEmpty, "SDK name should not be empty if provided")
-            XCTAssertTrue(sdkName.lowercased().contains("usercanal"), "SDK name should contain 'usercanal'")
-        }
+        let commitHash = Version.commitHash
+        XCTAssertNotNil(commitHash, "Commit hash should be available")
 
-        if let userAgent = UserCanal.userAgent {
-            XCTAssertFalse(userAgent.isEmpty, "User agent should not be empty if provided")
-            XCTAssertTrue(userAgent.contains(version), "User agent should contain version")
-        }
+        let buildTime = Version.buildTime
+        XCTAssertNotNil(buildTime, "Build time should be available")
+
+        let protocolVersion = Version.protocolVersion
+        XCTAssertFalse(protocolVersion.isEmpty, "Protocol version should not be empty")
+
+        let swiftVersion = Version.swiftVersion
+        XCTAssertFalse(swiftVersion.isEmpty, "Swift version should not be empty")
+    }
+
+    @MainActor
+    func testPlatformInfo() async {
+        let platformInfo = Version.platformInfo
+
+        XCTAssertFalse(platformInfo.osName.isEmpty, "OS name should not be empty")
+        XCTAssertFalse(platformInfo.osVersion.isEmpty, "OS version should not be empty")
+        XCTAssertFalse(platformInfo.deviceModel.isEmpty, "Device model should not be empty")
+    }
+
+    @MainActor
+    func testUserAgent() async {
+        let userAgent = Version.userAgent
+
+        XCTAssertFalse(userAgent.isEmpty, "User agent should not be empty")
+        XCTAssertTrue(userAgent.contains("usercanal-swift-sdk"), "User agent should contain SDK name")
+        XCTAssertTrue(userAgent.contains(Version.version), "User agent should contain version")
+    }
+
+    @MainActor
+    func testVersionInfo() async {
+        let versionInfo = Version.info
+
+        XCTAssertEqual(versionInfo.version, Version.version, "Version info should match current version")
+        XCTAssertEqual(versionInfo.commitHash, Version.commitHash, "Version info should match commit hash")
+        XCTAssertEqual(versionInfo.protocolVersion, Version.protocolVersion, "Version info should match protocol version")
+        XCTAssertEqual(versionInfo.swiftVersion, Version.swiftVersion, "Version info should match Swift version")
+        XCTAssertNotNil(versionInfo.platform, "Version info should contain platform info")
     }
 
     // MARK: - Module Import Tests
@@ -69,7 +99,7 @@ final class PackageTests: XCTestCase {
         XCTAssertNotNil(Properties.self, "Properties type should be accessible")
         XCTAssertNotNil(EventName.self, "EventName type should be accessible")
         XCTAssertNotNil(UserCanalConfig.self, "UserCanalConfig type should be accessible")
-        XCTAssertNotNil(UserCanalClient.self, "UserCanalClient type should be accessible")
+        XCTAssertNotNil(Version.self, "Version type should be accessible")
     }
 
     // MARK: - Platform Tests
@@ -110,24 +140,20 @@ final class PackageTests: XCTestCase {
             expectation.fulfill()
         }
 
-        wait(for: [expectation], timeout: 1.0)
+        await fulfillment(of: [expectation], timeout: 1.0)
     }
 
-    // MARK: - Sendable Support Tests
+    // MARK: - Memory Tests
 
-    func testSendableTypes() {
-        // Test that key types conform to Sendable
-        XCTAssertTrue(Event.self is any Sendable.Type, "Event should be Sendable")
-        XCTAssertTrue(LogEntry.self is any Sendable.Type, "LogEntry should be Sendable")
-        XCTAssertTrue(Properties.self is any Sendable.Type, "Properties should be Sendable")
-        XCTAssertTrue(EventName.self is any Sendable.Type, "EventName should be Sendable")
-    }
+    func testMemoryFootprint() {
+        // Test that basic SDK types don't cause memory issues
+        var versions: [String] = []
 
-    // MARK: - Package Configuration Tests
+        for _ in 0..<100 {
+            versions.append(Version.version)
+        }
 
-    func testPackageConfiguration() {
-        // Test that package can be configured with default values
-        let defaultConfig = UserCanalConfig.default
-        XCTAssertNotNil(defaultConfig, "Default configuration should be available")
+        XCTAssertEqual(versions.count, 100, "Should be able to create many version references")
+        XCTAssertTrue(versions.allSatisfy { $0 == Version.version }, "All versions should be identical")
     }
 }

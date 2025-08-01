@@ -8,7 +8,7 @@ let package = Package(
         .iOS(.v16)
     ],
     dependencies: [
-        .package(path: "../../..")
+        .package(path: "../..")
     ],
     targets: [
         .executableTarget(

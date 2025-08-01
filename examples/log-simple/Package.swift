@@ -2,17 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "AdvancedLogExample",
+    name: "SimpleLogExample",
     platforms: [
         .macOS(.v13),
         .iOS(.v16)
     ],
     dependencies: [
-        .package(path: "../../..")
+        .package(path: "../..")
     ],
     targets: [
         .executableTarget(
-            name: "AdvancedLogExample",
+            name: "SimpleLogExample",
             dependencies: [
                 .product(name: "UserCanal", package: "sdk-swift")
             ],

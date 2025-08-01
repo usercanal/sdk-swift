@@ -24,6 +24,7 @@ public actor SDKLogger {
     // MARK: - Log Categories
 
     private static let generalLogger = Logger(subsystem: "com.usercanal.sdk", category: "general")
+    private static let clientLogger = Logger(subsystem: "com.usercanal.sdk", category: "client")
     private static let networkLogger = Logger(subsystem: "com.usercanal.sdk", category: "network")
     private static let batchingLogger = Logger(subsystem: "com.usercanal.sdk", category: "batching")
     private static let deviceLogger = Logger(subsystem: "com.usercanal.sdk", category: "device")
@@ -71,7 +72,7 @@ public actor SDKLogger {
         guard level.priority <= logLevel.priority else { return }
 
         let logger = loggerFor(category: category)
-        let formattedMessage = "[\(level.rawValue.uppercased())] \(message)"
+        let formattedMessage = "[\(level.rawValue.uppercased())] UserCanal: \(message)"
 
         // Use appropriate OSLog level
         switch level.osLogType {
@@ -87,10 +88,7 @@ public actor SDKLogger {
             logger.log("\(formattedMessage)")
         }
 
-        // Also print to console in debug mode
-        if isDebugEnabled {
-            print("UserCanal SDK [\(category.rawValue)] \(formattedMessage)")
-        }
+        // OSLog handles console output automatically - no need for duplicate print
     }
 
     // MARK: - Helper Methods
@@ -99,6 +97,8 @@ public actor SDKLogger {
         switch category {
         case .general:
             return generalLogger
+        case .client:
+            return clientLogger
         case .network:
             return networkLogger
         case .batching:
@@ -169,6 +169,7 @@ public enum SystemLogLevel: String, Sendable, CaseIterable, Comparable, Codable 
 /// Categories for organizing SDK logs
 public enum LogCategory: String, Sendable, CaseIterable {
     case general = "general"
+    case client = "client"
     case network = "network"
     case batching = "batching"
     case device = "device"
@@ -187,7 +188,7 @@ extension SDKLogger {
         self.logLevel = logLevel
 
         if debugEnabled {
-            info("SDK logging configured - debug enabled, level: \(logLevel.rawValue)")
+            info("Logging configured: debug enabled, level: \(logLevel.rawValue)")
         }
     }
 
@@ -228,5 +229,10 @@ extension SDKLogger {
     /// Log event processing activity
     public static func eventActivity(_ message: String, level: SystemLogLevel = .debug) {
         log(level, message, category: .events)
+    }
+
+    /// Log client lifecycle activity
+    public static func clientActivity(_ message: String, level: SystemLogLevel = .info) {
+        log(level, message, category: .client)
     }
 }

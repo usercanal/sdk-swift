@@ -36,6 +36,9 @@ public struct UserCanalConfig: Sendable {
     /// Whether to enable debug logging
     public let enableDebugLogging: Bool
 
+    /// Log level for SDK internal logging
+    public let logLevel: SystemLogLevel
+
     /// Whether to collect device context automatically
     public let collectDeviceContext: Bool
 
@@ -47,6 +50,12 @@ public struct UserCanalConfig: Sendable {
 
     /// Whether to enable automatic error reporting
     public let enableErrorReporting: Bool
+
+    /// Whether users are opted out by default
+    public let defaultOptOut: Bool
+
+    /// Whether to generate client-side event IDs (for deduplication)
+    public let generateEventIds: Bool
 
     /// Advanced network configuration
     public let networkConfig: NetworkConfiguration
@@ -68,10 +77,13 @@ public struct UserCanalConfig: Sendable {
         networkTimeout: Duration = Defaults.networkTimeout,
         closeTimeout: Duration = Defaults.closeTimeout,
         enableDebugLogging: Bool = Defaults.enableDebugLogging,
+        logLevel: SystemLogLevel = Defaults.logLevel,
         collectDeviceContext: Bool = Defaults.collectDeviceContext,
         enableOfflineStorage: Bool = Defaults.enableOfflineStorage,
         maxOfflineEvents: Int = Defaults.maxOfflineEvents,
         enableErrorReporting: Bool = Defaults.enableErrorReporting,
+        defaultOptOut: Bool = Defaults.defaultOptOut,
+        generateEventIds: Bool = Defaults.generateEventIds,
         networkConfig: NetworkConfiguration = .default,
         performanceConfig: PerformanceConfiguration = .default,
         securityConfig: SecurityConfiguration = .standard
@@ -94,10 +106,13 @@ public struct UserCanalConfig: Sendable {
         self.networkTimeout = networkTimeout
         self.closeTimeout = closeTimeout
         self.enableDebugLogging = enableDebugLogging
+        self.logLevel = logLevel
         self.collectDeviceContext = collectDeviceContext
         self.enableOfflineStorage = enableOfflineStorage
         self.maxOfflineEvents = maxOfflineEvents
         self.enableErrorReporting = enableErrorReporting
+        self.defaultOptOut = defaultOptOut
+        self.generateEventIds = generateEventIds
         self.networkConfig = networkConfig
         self.performanceConfig = performanceConfig
         self.securityConfig = securityConfig
@@ -111,6 +126,7 @@ public struct UserCanalConfig: Sendable {
         batchSize: 200,
         flushInterval: .seconds(30),
         enableDebugLogging: false,
+        logLevel: .info,
         networkConfig: .production,
         performanceConfig: .optimized,
         securityConfig: .development
@@ -122,6 +138,7 @@ public struct UserCanalConfig: Sendable {
         batchSize: 10,
         flushInterval: .seconds(2),
         enableDebugLogging: true,
+        logLevel: .debug,
         networkConfig: .development,
         performanceConfig: .debug,
         securityConfig: .development
@@ -217,6 +234,9 @@ extension UserCanalConfig {
         /// Default debug logging state
         public static let enableDebugLogging = false
 
+        /// Default log level
+        public static let logLevel: SystemLogLevel = .info
+
         /// Default device context collection
         public static let collectDeviceContext = true
 
@@ -228,6 +248,12 @@ extension UserCanalConfig {
 
         /// Default error reporting
         public static let enableErrorReporting = true
+
+        /// Default opt-out state
+        public static let defaultOptOut = false
+
+        /// Default event ID generation
+        public static let generateEventIds = false
 
         /// Default network configuration
         public static let networkConfig = NetworkConfiguration.default
@@ -251,10 +277,13 @@ public struct UserCanalConfigBuilder: Sendable {
     private var networkTimeout = UserCanalConfig.Defaults.networkTimeout
     private var closeTimeout = UserCanalConfig.Defaults.closeTimeout
     private var enableDebugLogging = UserCanalConfig.Defaults.enableDebugLogging
+    private var logLevel = UserCanalConfig.Defaults.logLevel
     private var collectDeviceContext = UserCanalConfig.Defaults.collectDeviceContext
     private var enableOfflineStorage = UserCanalConfig.Defaults.enableOfflineStorage
     private var maxOfflineEvents = UserCanalConfig.Defaults.maxOfflineEvents
     private var enableErrorReporting = UserCanalConfig.Defaults.enableErrorReporting
+    private var defaultOptOut = UserCanalConfig.Defaults.defaultOptOut
+    private var generateEventIds = UserCanalConfig.Defaults.generateEventIds
     private var networkConfig = UserCanalConfig.Defaults.networkConfig
     private var performanceConfig = UserCanalConfig.Defaults.performanceConfig
     private var securityConfig = UserCanalConfig.Defaults.securityConfig
@@ -303,6 +332,12 @@ public struct UserCanalConfigBuilder: Sendable {
         return copy
     }
 
+    public func logLevel(_ level: SystemLogLevel) -> Self {
+        var copy = self
+        copy.logLevel = level
+        return copy
+    }
+
     public func collectDeviceContext(_ value: Bool = true) -> Self {
         var copy = self
         copy.collectDeviceContext = value
@@ -324,6 +359,18 @@ public struct UserCanalConfigBuilder: Sendable {
     public func enableErrorReporting(_ value: Bool = true) -> Self {
         var copy = self
         copy.enableErrorReporting = value
+        return copy
+    }
+
+    public func defaultOptOut(_ value: Bool = true) -> Self {
+        var copy = self
+        copy.defaultOptOut = value
+        return copy
+    }
+
+    public func generateEventIds(_ value: Bool = true) -> Self {
+        var copy = self
+        copy.generateEventIds = value
         return copy
     }
 
@@ -354,10 +401,13 @@ public struct UserCanalConfigBuilder: Sendable {
             networkTimeout: networkTimeout,
             closeTimeout: closeTimeout,
             enableDebugLogging: enableDebugLogging,
+            logLevel: logLevel,
             collectDeviceContext: collectDeviceContext,
             enableOfflineStorage: enableOfflineStorage,
             maxOfflineEvents: maxOfflineEvents,
             enableErrorReporting: enableErrorReporting,
+            defaultOptOut: defaultOptOut,
+            generateEventIds: generateEventIds,
             networkConfig: networkConfig,
             performanceConfig: performanceConfig,
             securityConfig: securityConfig
@@ -406,6 +456,7 @@ extension UserCanalConfig: CustomStringConvertible {
           networkTimeout: \(networkTimeout)
           closeTimeout: \(closeTimeout)
           enableDebugLogging: \(enableDebugLogging)
+          logLevel: \(logLevel)
           collectDeviceContext: \(collectDeviceContext)
           enableOfflineStorage: \(enableOfflineStorage)
           maxOfflineEvents: \(maxOfflineEvents)

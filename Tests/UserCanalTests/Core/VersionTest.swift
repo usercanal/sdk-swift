@@ -13,7 +13,7 @@ final class VersionTest: XCTestCase {
     // MARK: - Version Format Tests
 
     func testVersionFormat() {
-        let version = UserCanal.version
+        let version = Version.version
 
         XCTAssertFalse(version.isEmpty, "Version should not be empty")
 
@@ -27,7 +27,7 @@ final class VersionTest: XCTestCase {
     }
 
     func testVersionParts() {
-        let version = UserCanal.version
+        let version = Version.version
         let parts = version.split(separator: ".")
 
         XCTAssertGreaterThanOrEqual(parts.count, 3, "Version should have at least 3 parts (major.minor.patch)")
@@ -50,14 +50,14 @@ final class VersionTest: XCTestCase {
     // MARK: - Version Consistency Tests
 
     func testVersionConsistency() {
-        let version1 = UserCanal.version
-        let version2 = UserCanal.version
+        let version1 = Version.version
+        let version2 = Version.version
 
         XCTAssertEqual(version1, version2, "Version should be consistent across calls")
     }
 
     func testVersionNotEmpty() {
-        let version = UserCanal.version
+        let version = Version.version
 
         XCTAssertFalse(version.isEmpty, "Version should not be empty")
         XCTAssertFalse(version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "Version should not be just whitespace")
@@ -65,31 +65,32 @@ final class VersionTest: XCTestCase {
 
     // MARK: - Version Information Tests
 
-    func testSDKName() {
-        // Test SDK name if available
-        if let sdkName = UserCanal.sdkName {
-            XCTAssertFalse(sdkName.isEmpty, "SDK name should not be empty")
-            XCTAssertTrue(sdkName.lowercased().contains("usercanal"), "SDK name should contain 'usercanal'")
-        } else {
-            // SDK name might not be implemented yet
-            XCTAssertTrue(true, "SDK name not yet implemented")
-        }
+    @MainActor
+    func testUserAgent() async {
+        let userAgent = Version.userAgent
+        XCTAssertFalse(userAgent.isEmpty, "User agent should not be empty")
+        XCTAssertTrue(userAgent.contains("usercanal-swift-sdk"), "User agent should contain SDK name")
+        XCTAssertTrue(userAgent.contains(Version.version), "User agent should contain version")
     }
 
-    func testBuildNumber() {
-        // Test build number if available
-        if let buildNumber = UserCanal.buildNumber {
-            XCTAssertFalse(buildNumber.isEmpty, "Build number should not be empty")
-        } else {
-            // Build number might not be implemented yet
-            XCTAssertTrue(true, "Build number not yet implemented")
-        }
+    func testCommitHash() {
+        let commitHash = Version.commitHash
+        XCTAssertNotNil(commitHash, "Commit hash should be available")
+        // During development, it might be "unknown"
+        XCTAssertTrue(commitHash == "unknown" || !commitHash.isEmpty, "Commit hash should be 'unknown' or a valid hash")
+    }
+
+    func testBuildTime() {
+        let buildTime = Version.buildTime
+        XCTAssertNotNil(buildTime, "Build time should be available")
+        // During development, it might be "unknown"
+        XCTAssertTrue(buildTime == "unknown" || !buildTime.isEmpty, "Build time should be 'unknown' or a valid timestamp")
     }
 
     // MARK: - Version Comparison Tests
 
     func testVersionComparison() {
-        let version = UserCanal.version
+        let version = Version.version
 
         // Test basic version comparison logic
         XCTAssertTrue(isValidVersion(version), "Version should be valid: \(version)")
@@ -108,28 +109,36 @@ final class VersionTest: XCTestCase {
 
     // MARK: - Platform Information Tests
 
-    func testPlatformInformation() {
-        // Test platform-specific version information
+    @MainActor
+    func testPlatformInformation() async {
+        let platformInfo = Version.platformInfo
+
+        XCTAssertFalse(platformInfo.osName.isEmpty, "OS name should not be empty")
+        XCTAssertFalse(platformInfo.osVersion.isEmpty, "OS version should not be empty")
+        XCTAssertFalse(platformInfo.deviceModel.isEmpty, "Device model should not be empty")
+
+        // Test platform-specific information
         #if os(iOS)
-        XCTAssertTrue(true, "Running on iOS")
+        XCTAssertTrue(platformInfo.osName.contains("iOS") || platformInfo.osName.contains("iPhone"), "Should detect iOS")
         #elseif os(macOS)
-        XCTAssertTrue(true, "Running on macOS")
+        XCTAssertTrue(platformInfo.osName.contains("macOS") || platformInfo.osName.contains("Mac"), "Should detect macOS")
         #elseif os(visionOS)
-        XCTAssertTrue(true, "Running on visionOS")
+        XCTAssertTrue(platformInfo.osName.contains("visionOS"), "Should detect visionOS")
         #else
         XCTFail("Unsupported platform")
         #endif
     }
 
-    func testUserAgent() {
-        // Test user agent string if available
-        if let userAgent = UserCanal.userAgent {
-            XCTAssertFalse(userAgent.isEmpty, "User agent should not be empty")
-            XCTAssertTrue(userAgent.contains(UserCanal.version), "User agent should contain version")
-        } else {
-            // User agent might not be implemented yet
-            XCTAssertTrue(true, "User agent not yet implemented")
-        }
+    func testProtocolVersion() {
+        let protocolVersion = Version.protocolVersion
+        XCTAssertFalse(protocolVersion.isEmpty, "Protocol version should not be empty")
+        XCTAssertTrue(protocolVersion.hasPrefix("v"), "Protocol version should start with 'v'")
+    }
+
+    func testSwiftVersion() {
+        let swiftVersion = Version.swiftVersion
+        XCTAssertFalse(swiftVersion.isEmpty, "Swift version should not be empty")
+        XCTAssertTrue(swiftVersion.contains("."), "Swift version should contain dots")
     }
 
     // MARK: - Memory and Performance Tests
@@ -139,7 +148,7 @@ final class VersionTest: XCTestCase {
         let startTime = CFAbsoluteTimeGetCurrent()
 
         for _ in 0..<1000 {
-            _ = UserCanal.version
+            _ = Version.version
         }
 
         let endTime = CFAbsoluteTimeGetCurrent()
@@ -148,18 +157,15 @@ final class VersionTest: XCTestCase {
         XCTAssertLessThan(duration, 1.0, "Version access should be fast (completed 1000 calls in < 1 second)")
     }
 
-    func testVersionMemoryFootprint() {
-        // Test that version doesn't cause memory leaks
-        weak var weakString: NSString?
+    @MainActor
+    func testVersionInfo() async {
+        let versionInfo = Version.info
 
-        autoreleasepool {
-            let version = UserCanal.version as NSString
-            weakString = version
-            XCTAssertNotNil(weakString, "Version string should exist in autorelease pool")
-        }
-
-        // Note: This test might not be reliable due to string interning
-        // It's more of a documentation of expected behavior
+        XCTAssertEqual(versionInfo.version, Version.version, "Version info should contain current version")
+        XCTAssertEqual(versionInfo.commitHash, Version.commitHash, "Version info should contain commit hash")
+        XCTAssertEqual(versionInfo.protocolVersion, Version.protocolVersion, "Version info should contain protocol version")
+        XCTAssertEqual(versionInfo.swiftVersion, Version.swiftVersion, "Version info should contain Swift version")
+        XCTAssertNotNil(versionInfo.platform, "Version info should contain platform info")
     }
 
     // MARK: - Helper Methods

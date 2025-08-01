@@ -20,30 +20,9 @@ public enum SchemaType: UInt8 {
     case inventory = 4
 }
 
-/// Event types for different processing paths (matches event.fbs)
-public enum EventType: UInt8 {
-    case unknown = 0
-    case track = 1
-    case identify = 2
-    case group = 3
-    case alias = 4
-    case enrich = 5
-}
 
 
 
-/// Log severity levels (matches log.fbs RFC 5424 + TRACE)
-public enum FBLogLevel: UInt8 {
-    case emergency = 0
-    case alert = 1
-    case critical = 2
-    case error = 3
-    case warning = 4
-    case notice = 5
-    case info = 6
-    case debug = 7
-    case trace = 8
-}
 
 // MARK: - FlatBuffers Protocol Implementation
 
@@ -129,12 +108,9 @@ public struct FlatBuffersProtocol {
         var eventOffsets: [Offset] = []
 
         for event in events {
-            // Determine event type based on properties or name
-            let eventType = determineEventType(for: event)
-
-            // Convert to generated event type
+            // Use explicit event type from Event struct
             let eventTypeGenerated: schema_event_EventType
-            switch eventType {
+            switch event.eventType {
             case .unknown:
                 eventTypeGenerated = .unknown
             case .track:
@@ -197,40 +173,51 @@ public struct FlatBuffersProtocol {
         }
 
         // Add metadata
-        payload["event_id"] = event.id
+        if !event.id.isEmpty {
+            payload["event_id"] = event.id
+        }
         payload["event_name"] = event.name.stringValue
 
         return try JSONSerialization.data(withJSONObject: payload, options: [])
     }
 
-    /// Determine event type based on event content
-    private static func determineEventType(for event: Event) -> EventType {
-        // Check if this is an identify event (has user traits)
-        if event.properties.keys.contains(where: { ["name", "email", "traits"].contains($0) }) {
-            return .identify
-        }
 
-        // Check if this is a group event
-        if event.properties.keys.contains(where: { ["group_id", "company"].contains($0) }) {
-            return .group
-        }
-
-        // Default to track
-        return .track
-    }
 
     /// Convert userID string to 16-byte format
+    /// Properly handles UUID strings by parsing them as hex
     private static func convertUserIDToBytes(_ userID: String) -> Data {
-        let data = userID.data(using: .utf8) ?? Data()
+        // Try to parse as UUID first (standard format with dashes)
+        if let uuid = UUID(uuidString: userID) {
+            return withUnsafeBytes(of: uuid.uuid) { bytes in
+                Data(bytes)
+            }
+        }
 
+        // Try to parse as hex string without dashes (32 hex chars = 16 bytes)
+        let cleanHex = userID.replacingOccurrences(of: "-", with: "")
+        if cleanHex.count == 32, cleanHex.allSatisfy({ $0.isHexDigit }) {
+            var data = Data()
+            for i in stride(from: 0, to: cleanHex.count, by: 2) {
+                let start = cleanHex.index(cleanHex.startIndex, offsetBy: i)
+                let end = cleanHex.index(start, offsetBy: 2)
+                let byteString = String(cleanHex[start..<end])
+                if let byte = UInt8(byteString, radix: 16) {
+                    data.append(byte)
+                }
+            }
+            return data
+        }
+
+        // Fallback: treat as regular string and pad/truncate to 16 bytes
+        let data = userID.data(using: .utf8) ?? Data()
         if data.count == 16 {
             return data
         } else if data.count < 16 {
             // Pad with zeros
             return data + Data(repeating: 0, count: 16 - data.count)
         } else {
-            // Hash to 16 bytes
-            return Data(userID.utf8.prefix(16))
+            // Truncate to 16 bytes
+            return Data(data.prefix(16))
         }
     }
 
@@ -242,11 +229,19 @@ public struct FlatBuffersProtocol {
         var logOffsets: [Offset] = []
 
         for log in logs {
-            // Convert LogLevel to FBLogLevel
+            // Convert LogLevel to generated schema type
             let logLevel = convertLogLevel(log.level)
 
-            // Use LogCollect type (type 1) as specified
-            let eventType = LogEventType.log
+            // Convert LogEventType to generated schema type
+            let eventType: schema_log_LogEventType
+            switch log.eventType {
+            case .unknown:
+                eventType = .unknown
+            case .log:
+                eventType = .log
+            case .enrich:
+                eventType = .enrich
+            }
 
             // Serialize log payload (data properties as JSON)
             let payload = try serializeLogPayload(log)
@@ -259,29 +254,31 @@ public struct FlatBuffersProtocol {
             // Convert timestamp to milliseconds
             let timestampMs = UInt64(log.timestamp.timeIntervalSince1970 * 1000)
 
-            // Build LogEntry table (field IDs match log.fbs)
-            let logStart = builder.startTable(with: 7)
-            builder.add(element: eventType.rawValue, at: 0)  // event_type (id: 0)
-            builder.add(element: log.contextID, at: 1)       // context_id (id: 1)
-            builder.add(element: logLevel.rawValue, at: 2)   // level (id: 2)
-            builder.add(element: timestampMs, at: 3)         // timestamp (id: 3)
-            builder.add(offset: sourceVector, at: 4)         // source (id: 4)
-            builder.add(offset: serviceVector, at: 5)        // service (id: 5)
-            builder.add(offset: payloadVector, at: 6)        // payload (id: 6)
-            let logOffset = builder.endTable(at: logStart)
+            // Use generated FlatBuffers functions for LogEntry
+            let logOffset = schema_log_LogEntry.createLogEntry(
+                &builder,
+                eventType: eventType,
+                contextId: log.contextID,
+                level: logLevel,
+                timestamp: timestampMs,
+                sourceOffset: sourceVector,
+                serviceOffset: serviceVector,
+                payloadVectorOffset: payloadVector
+            )
 
-            logOffsets.append(Offset(offset: logOffset))
+            logOffsets.append(logOffset)
         }
 
         // Create logs vector
         let logsVector = builder.createVector(ofOffsets: logOffsets)
 
-        // Build LogData table
-        let logDataStart = builder.startTable(with: 1)
-        builder.add(offset: logsVector, at: 0) // logs (required)
-        let logData = builder.endTable(at: logDataStart)
+        // Use generated FlatBuffers functions for LogData
+        let logData = schema_log_LogData.createLogData(
+            &builder,
+            logsVectorOffset: logsVector
+        )
 
-        builder.finish(offset: Offset(offset: logData))
+        builder.finish(offset: logData)
 
         // Extract data from ByteBuffer using new API
         return Data(builder.sizedByteArray)
@@ -303,8 +300,8 @@ public struct FlatBuffersProtocol {
         return try JSONSerialization.data(withJSONObject: payload, options: [])
     }
 
-    /// Convert SDK LogLevel to FlatBuffers LogLevel
-    private static func convertLogLevel(_ level: LogLevel) -> FBLogLevel {
+    /// Convert SDK LogLevel to generated schema LogLevel
+    private static func convertLogLevel(_ level: LogLevel) -> schema_log_LogLevel {
         switch level {
         case .emergency: return .emergency
         case .alert: return .alert
@@ -316,6 +313,16 @@ public struct FlatBuffersProtocol {
         case .debug: return .debug
         case .trace: return .trace
         }
+    }
+
+}
+
+// MARK: - Helper Extensions
+
+/// Extension to check if a character is a valid hexadecimal digit
+private extension Character {
+    var isHexDigit: Bool {
+        return isASCII && (isNumber || ("a"..."f").contains(lowercased()) || ("A"..."F").contains(self))
     }
 }
 

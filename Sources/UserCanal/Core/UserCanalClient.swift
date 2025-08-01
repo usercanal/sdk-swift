@@ -73,15 +73,17 @@ public actor UserCanalClient {
         self.apiKey = apiKey
         self.config = config
 
-        SDKLogger.info("Initializing UserCanal client", category: .general)
+        // Configure SDK logging with user settings
+        // Auto-enable debug logging when debug level is set
+        let debugEnabled = config.enableDebugLogging || config.logLevel == .debug || config.logLevel == .trace
+        SDKLogger.configure(debugEnabled: debugEnabled, logLevel: config.logLevel)
+
+        SDKLogger.trace("Client initialization starting", category: .client)
 
         do {
-            // Initialize network client
+            // Initialize network client (no connection yet)
             let networkClient = try NetworkClient(apiKey: apiKey, endpoint: config.endpoint)
             self.networkClient = networkClient
-
-            // Connect to server
-            try await networkClient.connect()
 
             // Convert API key to data
             guard let apiKeyData = Data(fromHexString: apiKey) else {
@@ -98,11 +100,11 @@ public actor UserCanalClient {
             }
 
             self.state = .ready
-            SDKLogger.info("UserCanal client initialized successfully", category: .general)
+            SDKLogger.info("Client ready", category: .client)
 
         } catch {
             self.state = .failed(error)
-            SDKLogger.error("Failed to initialize UserCanal client", error: error, category: .general)
+            SDKLogger.error("Client initialization failed", error: error, category: .client)
             throw error
         }
     }
@@ -136,6 +138,72 @@ public actor UserCanalClient {
         }
     }
 
+    /// Track an analytics event with specific event type (fire-and-forget)
+    /// - Parameters:
+    ///   - userID: User identifier
+    ///   - eventName: Event name
+    ///   - eventType: Event type for CDP processing
+    ///   - properties: Event properties (optional)
+    public func eventWithType(
+        userID: String,
+        eventName: EventName,
+        eventType: EventType,
+        properties: Properties = Properties()
+    ) {
+        Task { [weak self] in
+            await self?.trackEventWithType(userID: userID, name: eventName, eventType: eventType, properties: properties)
+        }
+    }
+
+    /// Internal async event tracking with specific event type
+    private func trackEventWithType(
+        userID: String,
+        name: EventName,
+        eventType: EventType,
+        properties: Properties
+    ) async {
+        do {
+            guard state == .ready else {
+                SDKLogger.warning("Client not ready, dropping event", category: .client)
+                return
+            }
+
+            // Validate input
+            guard !userID.isEmpty else {
+                SDKLogger.error("Empty user ID, dropping event", category: .general)
+                return
+            }
+
+            // Create event with specific type
+            var event = Event(
+                userID: userID,
+                name: name,
+                eventType: eventType,
+                properties: properties,
+                generateId: config.generateEventIds
+            )
+
+            // Enrich with device context if enabled
+            event = await enrichEventWithDeviceContext(event)
+
+            // Validate event
+            try event.validate()
+
+            // Send to batch manager
+            guard let batcher = self.batcher else {
+                SDKLogger.error("Batch manager not initialized", category: .general)
+                return
+            }
+
+            try await batcher.addEvent(event)
+
+            SDKLogger.trace("Event sent: \(name.stringValue)", category: .events)
+
+        } catch {
+            SDKLogger.error("Failed to track event: \(error.localizedDescription)", category: .events)
+        }
+    }
+
     /// Internal async event tracking
     private func trackEvent(
         userID: String,
@@ -144,7 +212,7 @@ public actor UserCanalClient {
     ) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping event", category: .general)
+                SDKLogger.warning("Client not ready, dropping event", category: .client)
                 return
             }
 
@@ -158,7 +226,8 @@ public actor UserCanalClient {
             var event = Event(
                 userID: userID,
                 name: name,
-                properties: properties
+                properties: properties,
+                generateId: config.generateEventIds
             )
 
             // Enrich with device context if enabled
@@ -166,8 +235,6 @@ public actor UserCanalClient {
 
             // Validate event
             try event.validate()
-
-            SDKLogger.debug("Tracking event: \(name) for user: \(userID)", category: .general)
 
             // Send to batch manager
             guard let batcher = self.batcher else {
@@ -186,6 +253,7 @@ public actor UserCanalClient {
     }
 
     /// Identify a user with traits (fire-and-forget)
+    /// Internal user identification (async)
     /// - Parameters:
     ///   - userID: User identifier
     ///   - traits: User traits/properties
@@ -202,7 +270,7 @@ public actor UserCanalClient {
     private func identifyUser(userID: String, traits: Properties) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping identify", category: .general)
+                SDKLogger.warning("Client not ready, dropping identify", category: .client)
                 return
             }
 
@@ -212,14 +280,16 @@ public actor UserCanalClient {
                 return
             }
 
-            // Create identity
-            let identity = Identity(
+            // Create identify event
+            let identifyEvent = Event(
                 userID: userID,
-                traits: traits
+                name: EventName("user_identified"),
+                eventType: .identify,
+                properties: traits
             )
 
-            // Validate identity
-            try identity.validate()
+            // Validate event
+            try identifyEvent.validate()
 
             SDKLogger.debug("Identifying user: \(userID)", category: .general)
 
@@ -229,7 +299,7 @@ public actor UserCanalClient {
                 return
             }
 
-            try await batcher.addIdentity(identity)
+            try await batcher.addEvent(identifyEvent)
 
             // Update stats
             stats.incrementIdentities()
@@ -239,11 +309,11 @@ public actor UserCanalClient {
         }
     }
 
-    /// Associate a user with a group (fire-and-forget)
+    /// Associate user with group (fire-and-forget)
     /// - Parameters:
     ///   - userID: User identifier
     ///   - groupID: Group identifier
-    ///   - properties: Group properties
+    ///   - properties: Group properties (optional)
     public func eventGroup(
         userID: String,
         groupID: String,
@@ -258,7 +328,7 @@ public actor UserCanalClient {
     private func groupUser(userID: String, groupID: String, properties: Properties) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping group", category: .general)
+                SDKLogger.warning("Client not ready, dropping group", category: .client)
                 return
             }
 
@@ -273,17 +343,21 @@ public actor UserCanalClient {
                 return
             }
 
-            // Create group info
-            let groupInfo = GroupInfo(
+            // Create group event with group_id in properties
+            var groupProperties = properties
+            groupProperties["group_id"] = groupID
+
+            let groupEvent = Event(
                 userID: userID,
-                groupID: groupID,
-                properties: properties
+                name: EventName("user_grouped"),
+                eventType: .group,
+                properties: groupProperties
             )
 
-            // Validate group info
-            try groupInfo.validate()
+            // Validate event
+            try groupEvent.validate()
 
-            SDKLogger.debug("Associating user: \(userID) with group: \(groupID)", category: .general)
+            SDKLogger.debug("Associating user \(userID) with group: \(groupID)", category: .general)
 
             // Send to batch manager
             guard let batcher = self.batcher else {
@@ -291,17 +365,81 @@ public actor UserCanalClient {
                 return
             }
 
-            try await batcher.addGroup(groupInfo)
+            try await batcher.addEvent(groupEvent)
 
             // Update stats
             stats.incrementGroups()
 
         } catch {
-            SDKLogger.error("Failed to group user: \(error)", category: .general)
+            SDKLogger.error("Failed to associate user with group: \(error)", category: .general)
         }
     }
 
-    /// Track revenue (fire-and-forget)
+    /// Alias user (identity resolution) - connects previous ID to new user ID
+    /// - Parameters:
+    ///   - previousId: Previous user identifier (anonymous ID, old user ID, etc.)
+    ///   - userId: New user identifier to merge with
+    public func eventAlias(
+        previousId: String,
+        userId: String
+    ) {
+        Task { [weak self] in
+            await self?.aliasUser(previousId: previousId, userId: userId)
+        }
+    }
+
+    /// Internal async user aliasing for identity resolution
+    private func aliasUser(previousId: String, userId: String) async {
+        do {
+            guard state == .ready else {
+                SDKLogger.warning("Client not ready, dropping alias", category: .client)
+                return
+            }
+
+            // Validate input
+            guard !previousId.isEmpty else {
+                SDKLogger.error("Empty previous ID, dropping alias", category: .general)
+                return
+            }
+
+            guard !userId.isEmpty else {
+                SDKLogger.error("Empty user ID, dropping alias", category: .general)
+                return
+            }
+
+            // Create alias event with both IDs in properties
+            let aliasEvent = Event(
+                userID: userId, // The "main" user ID
+                name: EventName("user_aliased"),
+                eventType: .alias,
+                properties: Properties([
+                    "previous_id": previousId,
+                    "user_id": userId
+                ])
+            )
+
+            // Validate event
+            try aliasEvent.validate()
+
+            SDKLogger.debug("Aliasing user: \(previousId) -> \(userId)", category: .general)
+
+            // Send to batch manager
+            guard let batcher = self.batcher else {
+                SDKLogger.error("Batch manager not initialized", category: .general)
+                return
+            }
+
+            try await batcher.addEvent(aliasEvent)
+
+            // Update stats (reuse groups counter for now)
+            stats.incrementGroups()
+
+        } catch {
+            SDKLogger.error("Failed to alias user: \(error)", category: .general)
+        }
+    }
+
+    /// Track revenue event (fire-and-forget)
     /// - Parameters:
     ///   - userID: User identifier
     ///   - orderID: Order identifier
@@ -324,7 +462,7 @@ public actor UserCanalClient {
     private func trackRevenue(userID: String, orderID: String, amount: Double, currency: Currency, properties: Properties) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping revenue", category: .general)
+                SDKLogger.warning("Client not ready, dropping revenue", category: .client)
                 return
             }
 
@@ -339,17 +477,21 @@ public actor UserCanalClient {
                 return
             }
 
-            // Create revenue
-            let revenue = Revenue(
+            // Create revenue event with revenue data in properties
+            var revenueProperties = properties
+            revenueProperties["order_id"] = orderID
+            revenueProperties["amount"] = amount
+            revenueProperties["currency"] = currency.currencyCode
+
+            let revenueEvent = Event(
                 userID: userID,
-                orderID: orderID,
-                amount: amount,
-                currency: currency,
-                properties: properties
+                name: EventName("revenue_tracked"),
+                eventType: .track,
+                properties: revenueProperties
             )
 
-            // Validate revenue
-            try revenue.validate()
+            // Validate event
+            try revenueEvent.validate()
 
             SDKLogger.debug("Tracking revenue: \(amount) \(currency) for user: \(userID)", category: .general)
 
@@ -359,7 +501,7 @@ public actor UserCanalClient {
                 return
             }
 
-            try await batcher.addRevenue(revenue)
+            try await batcher.addEvent(revenueEvent)
 
             // Update stats
             stats.incrementRevenue()
@@ -532,14 +674,14 @@ public actor UserCanalClient {
     private func logEntry(_ entry: LogEntry) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping log", category: .general)
+                SDKLogger.warning("Client not ready, dropping log", category: .client)
                 return
             }
 
             // Validate log entry
             try entry.validate()
 
-            SDKLogger.debug("Logging entry: \(entry.level) - \(entry.message)", category: .general)
+            SDKLogger.debug("Log \(entry.level): \(entry.message) [service: \(entry.service)]", category: .general)
 
             // Send to batch manager
             guard let batcher = self.batcher else {
@@ -561,7 +703,7 @@ public actor UserCanalClient {
     private func logBatchEntries(_ entries: [LogEntry]) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping log batch", category: .general)
+                SDKLogger.warning("Client not ready, dropping log batch", category: .client)
                 return
             }
 
@@ -611,7 +753,7 @@ public actor UserCanalClient {
     ) async {
         do {
             guard state == .ready else {
-                SDKLogger.warning("Client not ready, dropping log", category: .general)
+                SDKLogger.warning("Client not ready, dropping log", category: .client)
                 return
             }
 
@@ -715,11 +857,12 @@ public actor UserCanalClient {
 
         // Return new event with enriched properties
         return Event(
-            id: event.id,
+            id: event.id.isEmpty ? nil : event.id,
             userID: event.userID,
             name: event.name,
             properties: enrichedProperties,
-            timestamp: event.timestamp
+            timestamp: event.timestamp,
+            generateId: !event.id.isEmpty
         )
     }
 
