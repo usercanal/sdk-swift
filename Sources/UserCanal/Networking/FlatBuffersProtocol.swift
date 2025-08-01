@@ -108,6 +108,9 @@ public struct FlatBuffersProtocol {
         var eventOffsets: [Offset] = []
 
         for event in events {
+            // Trace logging for event type mapping
+            SDKLogger.trace("Serializing event '\(event.name.stringValue)' with type: \(event.eventType) (raw: \(event.eventType.rawValue))", category: .batching)
+
             // Use explicit event type from Event struct
             let eventTypeGenerated: schema_event_EventType
             switch event.eventType {
@@ -124,6 +127,8 @@ public struct FlatBuffersProtocol {
             case .enrich:
                 eventTypeGenerated = .enrich
             }
+
+            SDKLogger.trace("Mapped to FlatBuffers type: \(eventTypeGenerated) (raw: \(eventTypeGenerated.rawValue))", category: .batching)
 
             // Serialize event payload (properties + metadata as JSON)
             let payload = try serializeEventPayload(event)
