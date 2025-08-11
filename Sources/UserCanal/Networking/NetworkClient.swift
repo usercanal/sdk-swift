@@ -251,9 +251,9 @@ public actor NetworkClient {
                 content: frame,
                 completion: .contentProcessed { [weak self] error in
                     if let error = error {
-                        print("❌ NetworkClient: Send failed with error: \(error)")
+                        SDKLogger.error("Send failed with error", error: error, category: .network)
                     } else {
-                        print("✅ NetworkClient: Send completed successfully")
+                        SDKLogger.trace("Send completed successfully", category: .network)
                     }
                     Task { [weak self] in
                         if let error = error {
@@ -280,8 +280,8 @@ public actor NetworkClient {
         // Data payload
         frame.append(data)
 
-        print("🔍 NetworkClient: Created frame: \(frame.count) bytes (4-byte prefix + \(data.count) payload)")
-        print("🔍 NetworkClient: Length prefix: \(String(format: "%08x", length)) (\(length) bytes)")
+        SDKLogger.trace("Created frame: \(frame.count) bytes (4-byte prefix + \(data.count) payload)", category: .network)
+        SDKLogger.trace("Length prefix: \(String(format: "%08x", length)) (\(length) bytes)", category: .network)
 
         return frame
     }
@@ -293,7 +293,7 @@ public actor NetworkClient {
         stats.setLastSendTime(Date())
         lastSuccessTime = Date()
 
-        print("📡 NetworkClient: Batch transmission confirmed: \(frameSize) bytes")
+        SDKLogger.debug("Batch transmission confirmed: \(frameSize) bytes", category: .network)
         // Batch sent details are logged by BatchManager with item counts
     }
 
