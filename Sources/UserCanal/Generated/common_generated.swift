@@ -23,6 +23,14 @@ public enum schema_common_SchemaType: UInt8, Enum, Verifiable {
 
 ///  Standard batch structure for all data types
 ///  This is the top-level container that wraps all schema-specific data
+/// 
+///  Field ordering is optimized for collector processing pipeline:
+///  1. api_key: Authentication gate - drop unauthorized batches early
+///  2. version: Decoder selection - choose protocol handler
+///  3. schema_type: Handler routing - events vs logs pipeline
+///  4. batch_id: Deduplication check - after routing decision
+///  5. data: Payload processing - most expensive operation last
+/// 
 ///  Field IDs ensure forward compatibility and allow optimal field ordering
 public struct schema_common_Batch: FlatBufferObject, Verifiable {
 
@@ -35,9 +43,10 @@ public struct schema_common_Batch: FlatBufferObject, Verifiable {
 
   private enum VTOFFSET: VOffset {
     case apiKey = 4
-    case batchId = 6
-    case schemaType = 8
-    case data = 10
+    case schemaType = 6
+    case version = 8
+    case batchId = 10
+    case data = 12
     var v: Int32 { Int32(self.rawValue) }
     var p: VOffset { self.rawValue }
   }
@@ -46,29 +55,33 @@ public struct schema_common_Batch: FlatBufferObject, Verifiable {
   public var apiKeyCount: Int32 { let o = _accessor.offset(VTOFFSET.apiKey.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func apiKey(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.apiKey.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var apiKey: [UInt8] { return _accessor.getVector(at: VTOFFSET.apiKey.v) ?? [] }
-  public var batchId: UInt64 { let o = _accessor.offset(VTOFFSET.batchId.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
   public var schemaType: schema_common_SchemaType { let o = _accessor.offset(VTOFFSET.schemaType.v); return o == 0 ? .unknown : schema_common_SchemaType(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unknown }
+  public var version: UInt8 { let o = _accessor.offset(VTOFFSET.version.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt8.self, at: o) }
+  public var batchId: UInt64 { let o = _accessor.offset(VTOFFSET.batchId.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
   public var hasData: Bool { let o = _accessor.offset(VTOFFSET.data.v); return o == 0 ? false : true }
   public var dataCount: Int32 { let o = _accessor.offset(VTOFFSET.data.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func data(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.data.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var data: [UInt8] { return _accessor.getVector(at: VTOFFSET.data.v) ?? [] }
-  public static func startBatch(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 4) }
+  public static func startBatch(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 5) }
   public static func addVectorOf(apiKey: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: apiKey, at: VTOFFSET.apiKey.p) }
-  public static func add(batchId: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: batchId, def: 0, at: VTOFFSET.batchId.p) }
   public static func add(schemaType: schema_common_SchemaType, _ fbb: inout FlatBufferBuilder) { fbb.add(element: schemaType.rawValue, def: 0, at: VTOFFSET.schemaType.p) }
+  public static func add(version: UInt8, _ fbb: inout FlatBufferBuilder) { fbb.add(element: version, def: 0, at: VTOFFSET.version.p) }
+  public static func add(batchId: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: batchId, def: 0, at: VTOFFSET.batchId.p) }
   public static func addVectorOf(data: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: data, at: VTOFFSET.data.p) }
-  public static func endBatch(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); fbb.require(table: end, fields: [4, 10]); return end }
+  public static func endBatch(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); fbb.require(table: end, fields: [4, 12]); return end }
   public static func createBatch(
     _ fbb: inout FlatBufferBuilder,
     apiKeyVectorOffset apiKey: Offset,
-    batchId: UInt64 = 0,
     schemaType: schema_common_SchemaType = .unknown,
+    version: UInt8 = 0,
+    batchId: UInt64 = 0,
     dataVectorOffset data: Offset
   ) -> Offset {
     let __start = schema_common_Batch.startBatch(&fbb)
     schema_common_Batch.addVectorOf(apiKey: apiKey, &fbb)
-    schema_common_Batch.add(batchId: batchId, &fbb)
     schema_common_Batch.add(schemaType: schemaType, &fbb)
+    schema_common_Batch.add(version: version, &fbb)
+    schema_common_Batch.add(batchId: batchId, &fbb)
     schema_common_Batch.addVectorOf(data: data, &fbb)
     return schema_common_Batch.endBatch(&fbb, start: __start)
   }
@@ -76,8 +89,9 @@ public struct schema_common_Batch: FlatBufferObject, Verifiable {
   public static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
     var _v = try verifier.visitTable(at: position)
     try _v.visit(field: VTOFFSET.apiKey.p, fieldName: "apiKey", required: true, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
-    try _v.visit(field: VTOFFSET.batchId.p, fieldName: "batchId", required: false, type: UInt64.self)
     try _v.visit(field: VTOFFSET.schemaType.p, fieldName: "schemaType", required: false, type: schema_common_SchemaType.self)
+    try _v.visit(field: VTOFFSET.version.p, fieldName: "version", required: false, type: UInt8.self)
+    try _v.visit(field: VTOFFSET.batchId.p, fieldName: "batchId", required: false, type: UInt64.self)
     try _v.visit(field: VTOFFSET.data.p, fieldName: "data", required: true, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
     _v.finish()
   }

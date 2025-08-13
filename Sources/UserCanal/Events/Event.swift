@@ -16,6 +16,7 @@ public enum EventType: UInt8, Sendable, CaseIterable, Codable {
     case group = 3      // Group membership/traits updates
     case alias = 4      // Identity resolution/user merging
     case enrich = 5     // Generic entity enrichment
+    case context = 6    // Session/device context updates
 }
 
 // MARK: - Event
@@ -309,6 +310,74 @@ public struct Product: Sendable {
     }
 }
 
+// MARK: - EventAdvanced
+
+/// Represents an advanced tracking event with optional device/session ID overrides
+/// Used when you need explicit control over device_id, session_id, or timestamp
+public struct EventAdvanced: Sendable {
+
+    // MARK: - Properties
+
+    /// User ID associated with this event (required)
+    public let userID: String
+
+    /// Event name (required)
+    public let name: EventName
+
+    /// Additional properties/metadata for the event
+    public let properties: Properties
+
+    // MARK: - Advanced Optional Overrides
+
+    /// Optional device ID override (16-byte UUID data)
+    /// If nil, will use default device behavior
+    public let deviceID: Data?
+
+    /// Optional session ID override (16-byte UUID data)
+    /// If nil, will use current session ID
+    public let sessionID: Data?
+
+    /// Optional custom timestamp override
+    /// If nil, will use current timestamp
+    public let timestamp: Date?
+
+    // MARK: - Initialization
+
+    /// Create a new advanced event
+    public init(
+        userID: String,
+        name: EventName,
+        properties: Properties = Properties(),
+        deviceID: Data? = nil,
+        sessionID: Data? = nil,
+        timestamp: Date? = nil
+    ) {
+        self.userID = userID
+        self.name = name
+        self.properties = properties
+        self.deviceID = deviceID
+        self.sessionID = sessionID
+        self.timestamp = timestamp
+    }
+
+    /// Create an advanced event with property builder
+    public init(
+        userID: String,
+        name: EventName,
+        deviceID: Data? = nil,
+        sessionID: Data? = nil,
+        timestamp: Date? = nil,
+        @PropertiesBuilder properties: () -> Properties
+    ) {
+        self.userID = userID
+        self.name = name
+        self.properties = properties()
+        self.deviceID = deviceID
+        self.sessionID = sessionID
+        self.timestamp = timestamp
+    }
+}
+
 // MARK: - Validation Extensions
 
 extension Event {
@@ -395,6 +464,33 @@ extension Product {
     }
 }
 
+extension EventAdvanced {
+    /// Validate the advanced event
+    public func validate() throws {
+        guard !userID.isEmpty else {
+            throw UserCanalError.validationError(field: "userID", reason: "User ID cannot be empty")
+        }
+
+        guard !name.stringValue.isEmpty else {
+            throw UserCanalError.validationError(field: "eventName", reason: "Event name cannot be empty")
+        }
+
+        // Validate device ID format if provided (should be 16 bytes)
+        if let deviceID = deviceID {
+            guard deviceID.count == 16 else {
+                throw UserCanalError.validationError(field: "deviceID", reason: "Device ID must be exactly 16 bytes")
+            }
+        }
+
+        // Validate session ID format if provided (should be 16 bytes)
+        if let sessionID = sessionID {
+            guard sessionID.count == 16 else {
+                throw UserCanalError.validationError(field: "sessionID", reason: "Session ID must be exactly 16 bytes")
+            }
+        }
+    }
+}
+
 // MARK: - Codable Conformance
 
 extension Event: Codable {}
@@ -402,6 +498,7 @@ extension Identity: Codable {}
 extension GroupInfo: Codable {}
 extension Revenue: Codable {}
 extension Product: Codable {}
+extension EventAdvanced: Codable {}
 
 // MARK: - CustomStringConvertible
 
@@ -432,5 +529,14 @@ extension Revenue: CustomStringConvertible {
 extension Product: CustomStringConvertible {
     public var description: String {
         return "Product(id: \(id), name: \(name), price: \(price), quantity: \(quantity))"
+    }
+}
+
+extension EventAdvanced: CustomStringConvertible {
+    public var description: String {
+        let deviceInfo = deviceID != nil ? "deviceID: custom" : "deviceID: default"
+        let sessionInfo = sessionID != nil ? "sessionID: custom" : "sessionID: default"
+        let timestampInfo = timestamp != nil ? "timestamp: custom" : "timestamp: default"
+        return "EventAdvanced(userID: \(userID), name: \(name.stringValue), \(deviceInfo), \(sessionInfo), \(timestampInfo))"
     }
 }

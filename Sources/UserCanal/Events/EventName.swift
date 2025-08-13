@@ -207,6 +207,18 @@ extension EventName {
     /// App entered foreground
     public static let appForegrounded = EventName("App Foregrounded")
 
+    /// App became active
+    public static let appActive = EventName("App Active")
+
+    /// App became inactive
+    public static let appInactive = EventName("App Inactive")
+
+    /// App was terminated
+    public static let appTerminated = EventName("App Terminated")
+
+    /// Session timed out
+    public static let sessionTimeout = EventName("Session Timeout")
+
     // MARK: - Error Events
 
     /// Application error occurred
@@ -254,6 +266,7 @@ extension EventName {
 
         // Session Events
         .sessionStarted, .sessionEnded, .appLaunched, .appBackgrounded, .appForegrounded,
+        .appActive, .appInactive, .appTerminated, .sessionTimeout,
 
         // Error Events
         .errorOccurred, .crashDetected, .performanceIssue
@@ -353,7 +366,8 @@ extension EventName {
             return .communication
 
         // Session Events
-        case .sessionStarted, .sessionEnded, .appLaunched, .appBackgrounded, .appForegrounded:
+        case .sessionStarted, .sessionEnded, .appLaunched, .appBackgrounded, .appForegrounded,
+             .appActive, .appInactive, .appTerminated, .sessionTimeout:
             return .session
 
         // Error Events

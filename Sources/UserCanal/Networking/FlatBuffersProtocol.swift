@@ -32,12 +32,19 @@ public struct FlatBuffersProtocol {
     // MARK: - Constants
 
     private static let maxBatchSize = 10 * 1024 * 1024 // 10MB
+    private static let protocolVersionCurrent: UInt8 = 100 // v1.0 = 100 (matching Go SDK)
 
     // MARK: - Public Interface
 
     /// Create a batch for events
     public static func createEventBatch(events: [Event], apiKey: Data) throws -> Data {
         let eventData = try serializeEvents(events)
+        return try createBatch(apiKey: apiKey, schemaType: .event, data: eventData)
+    }
+
+    /// Create a batch for events with optional device/session ID overrides (for EventAdvanced)
+    public static func createEventBatch(events: [Event], apiKey: Data, deviceID: Data?, sessionID: Data?) throws -> Data {
+        let eventData = try serializeEvents(events, deviceID: deviceID, sessionID: sessionID)
         return try createBatch(apiKey: apiKey, schemaType: .event, data: eventData)
     }
 
@@ -75,12 +82,13 @@ public struct FlatBuffersProtocol {
             schemaTypeGenerated = .inventory
         }
 
-        // Use generated FlatBuffers functions (like Go SDK)
+        // Use generated FlatBuffers functions (like Go SDK) with version
         let batch = schema_common_Batch.createBatch(
             &builder,
             apiKeyVectorOffset: apiKeyVector,
-            batchId: batchID,
             schemaType: schemaTypeGenerated,
+            version: protocolVersionCurrent,
+            batchId: batchID,
             dataVectorOffset: dataVector
         )
 
@@ -104,6 +112,11 @@ public struct FlatBuffersProtocol {
 
     /// Serialize events to EventData format (matches event.fbs)
     private static func serializeEvents(_ events: [Event]) throws -> Data {
+        return try serializeEvents(events, deviceID: nil, sessionID: nil)
+    }
+
+    /// Serialize events with optional device/session ID overrides
+    private static func serializeEvents(_ events: [Event], deviceID: Data?, sessionID: Data?) throws -> Data {
         var builder = FlatBufferBuilder(initialSize: 1024)
         var eventOffsets: [Offset] = []
 
@@ -123,27 +136,42 @@ public struct FlatBuffersProtocol {
                 eventTypeGenerated = .alias
             case .enrich:
                 eventTypeGenerated = .enrich
+            case .context:
+                eventTypeGenerated = .context
             }
 
 
 
-            // Serialize event payload (properties + metadata as JSON)
+            // Serialize event payload (properties only, no event_name)
             let payload = try serializeEventPayload(event)
             let payloadVector = builder.createVector(bytes: payload)
 
-            // Convert userID to 16-byte UUID format (pad or hash if needed)
-            let userIDBytes = convertUserIDToBytes(event.userID)
-            let userIDVector = builder.createVector(bytes: userIDBytes)
+            // Create event name string offset
+            let eventNameOffset = builder.create(string: event.name.stringValue)
+
+            // Use provided device_id or convert userID to device_id (16-byte UUID format)
+            let deviceIDBytes = deviceID ?? convertUserIDToBytes(event.userID)
+            let deviceIDVector = builder.createVector(bytes: deviceIDBytes)
+
+            // Use provided session_id or nil for server-side behavior
+            let sessionIDVector: Offset
+            if let sessionID = sessionID {
+                sessionIDVector = builder.createVector(bytes: sessionID)
+            } else {
+                sessionIDVector = Offset() // Use default empty offset for nil
+            }
 
             // Convert timestamp to milliseconds
             let timestampMs = UInt64(event.timestamp.timeIntervalSince1970 * 1000)
 
-            // Use generated FlatBuffers functions for Event
+            // Use new schema with event_name field
             let eventOffset = schema_event_Event.createEvent(
                 &builder,
-                timestamp: timestampMs,
                 eventType: eventTypeGenerated,
-                userIdVectorOffset: userIDVector,
+                timestamp: timestampMs,
+                deviceIdVectorOffset: deviceIDVector,
+                sessionIdVectorOffset: sessionIDVector,
+                eventNameOffset: eventNameOffset,
                 payloadVectorOffset: payloadVector
             )
 
@@ -174,11 +202,10 @@ public struct FlatBuffersProtocol {
             payload[key] = value
         }
 
-        // Add metadata
+        // Add metadata (but not event_name - that goes in dedicated field)
         if !event.id.isEmpty {
             payload["event_id"] = event.id
         }
-        payload["event_name"] = event.name.stringValue
 
         return try JSONSerialization.data(withJSONObject: payload, options: [])
     }

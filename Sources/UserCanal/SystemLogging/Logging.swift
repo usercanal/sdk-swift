@@ -31,6 +31,7 @@ public actor SDKLogger {
     private static let eventLogger = Logger(subsystem: "com.usercanal.sdk", category: "events")
     private static let errorLogger = Logger(subsystem: "com.usercanal.sdk", category: "error")
     private static let configLogger = Logger(subsystem: "com.usercanal.sdk", category: "config")
+    private static let sessionLogger = Logger(subsystem: "com.usercanal.sdk", category: "session")
 
     // MARK: - Public Logging Methods
 
@@ -111,6 +112,8 @@ public actor SDKLogger {
             return errorLogger
         case .config:
             return configLogger
+        case .session:
+            return sessionLogger
         }
     }
 }
@@ -176,6 +179,7 @@ public enum LogCategory: String, Sendable, CaseIterable {
     case events = "events"
     case error = "error"
     case config = "config"
+    case session = "session"
 }
 
 // MARK: - Configuration Extensions

@@ -6,6 +6,13 @@
 
 import Foundation
 
+/// Wrapper for Event with device/session ID overrides
+private struct EventItem {
+    let event: Event
+    let deviceID: Data?
+    let sessionID: Data?
+}
+
 /// Working BatchManager implementation that actually sends data to the collector
 public actor BatchManager {
 
@@ -20,8 +27,8 @@ public actor BatchManager {
     /// Network client for sending batches
     private let networkClient: NetworkClient
 
-    /// Unified event queue for all event types (TRACK, IDENTIFY, GROUP, ALIAS, ENRICH)
-    private var eventQueue: [Event] = []
+    /// Event queue with device/session ID overrides
+    private var eventQueue: [EventItem] = []
 
     /// Log queue (separate schema)
     private var logQueue: [LogEntry] = []
@@ -47,8 +54,12 @@ public actor BatchManager {
 
     // MARK: - Public Methods
 
-    public func addEvent(_ event: Event) async throws {
-        eventQueue.append(event)
+
+
+    /// Add an event with optional device/session ID overrides
+    public func addEvent(_ event: Event, deviceID: Data? = nil, sessionID: Data? = nil) async throws {
+        let item = EventItem(event: event, deviceID: deviceID, sessionID: sessionID)
+        eventQueue.append(item)
         SDKLogger.trace("Event queued (batch size: \(eventQueue.count))", category: .batching)
 
         // Check if we should flush based on batch size
@@ -88,23 +99,35 @@ public actor BatchManager {
             return
         }
 
-        // Send events if we have any
-        if !eventQueue.isEmpty {
-            do {
-                let events = eventQueue
-                eventQueue.removeAll()
+    // Send events if we have any
+    if !eventQueue.isEmpty {
+        do {
+            let items = eventQueue
+            eventQueue.removeAll()
 
-                let eventBatch = try FlatBuffersProtocol.createEventBatch(events: events, apiKey: apiKey)
+            // Group by device/session ID combination for batching efficiency
+            let groupedItems = Dictionary(grouping: items) { item in
+                "\(item.deviceID?.base64EncodedString() ?? "nil")_\(item.sessionID?.base64EncodedString() ?? "nil")"
+            }
+
+            // Send each group separately (same device/session IDs can be batched together)
+            for (_, items) in groupedItems {
+                let events = items.map { $0.event }
+                let deviceID = items.first?.deviceID
+                let sessionID = items.first?.sessionID
+
+                let eventBatch = try FlatBuffersProtocol.createEventBatch(events: events, apiKey: apiKey, deviceID: deviceID, sessionID: sessionID)
                 try await networkClient.connectIfNeeded()
                 try await networkClient.sendBatch(eventBatch)
                 await networkClient.disconnect()
-
-                SDKLogger.debug("Sent batch: \(eventBatch.count) bytes with \(events.count) events", category: .batching)
-            } catch {
-                SDKLogger.error("Failed to send event batch", error: error, category: .batching)
-                throw error
             }
+
+            SDKLogger.info("Events sent successfully (count: \(items.count))", category: .batching)
+        } catch {
+            SDKLogger.error("Failed to send events", error: error, category: .batching)
+            throw error
         }
+    }
 
         // Send logs if we have any
         if !logQueue.isEmpty {

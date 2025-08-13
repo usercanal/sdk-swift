@@ -32,6 +32,9 @@ public actor UserCanalClient {
     /// Device context collector
     private var deviceContext: DeviceContext?
 
+    /// Session manager for device/session ID lifecycle
+    private var sessionManager: SessionManager?
+
     /// Client statistics
     private var stats: ClientStats = ClientStats()
 
@@ -98,6 +101,13 @@ public actor UserCanalClient {
             if config.collectDeviceContext {
                 self.deviceContext = DeviceContext()
             }
+
+            // Initialize session manager for device/session ID lifecycle
+            let sessionManager = SessionManager(
+                client: self,
+                sessionTimeout: config.sessionTimeout ?? 30 * 60 // 30 minutes default
+            )
+            self.sessionManager = sessionManager
 
             self.state = .ready
             SDKLogger.info("Client ready", category: .client)
@@ -193,13 +203,22 @@ public actor UserCanalClient {
             // Validate event
             try event.validate()
 
-            // Send to batch manager
+            // Get device and session IDs from session manager
+            var deviceID: Data?
+            var sessionID: Data?
+
+            if let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Send to batch manager with device/session IDs
             guard let batcher = self.batcher else {
                 SDKLogger.error("Batch manager not initialized", category: .general)
                 return
             }
 
-            try await batcher.addEvent(event)
+            try await batcher.addEvent(event, deviceID: deviceID, sessionID: sessionID)
 
             SDKLogger.trace("Event sent: \(name.stringValue)", category: .events)
 
@@ -240,13 +259,22 @@ public actor UserCanalClient {
             // Validate event
             try event.validate()
 
-            // Send to batch manager
+            // Get device_id and session_id from SessionManager for all events
+            var deviceID: Data?
+            var sessionID: Data?
+
+            if let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Send to batch manager with device/session IDs
             guard let batcher = self.batcher else {
                 SDKLogger.error("Batch manager not initialized", category: .general)
                 return
             }
 
-            try await batcher.addEvent(event)
+            try await batcher.addEvent(event, deviceID: deviceID, sessionID: sessionID)
 
             // Update stats
             stats.incrementEvents()
@@ -297,13 +325,22 @@ public actor UserCanalClient {
 
             SDKLogger.debug("Identifying user: \(userID)", category: .general)
 
-            // Send to batch manager
+            // Get device and session IDs from session manager
+            var deviceID: Data?
+            var sessionID: Data?
+
+            if let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Send to batch manager with device/session IDs
             guard let batcher = self.batcher else {
                 SDKLogger.error("Batch manager not initialized", category: .general)
                 return
             }
 
-            try await batcher.addEvent(identifyEvent)
+            try await batcher.addEvent(identifyEvent, deviceID: deviceID, sessionID: sessionID)
 
             // Update stats
             stats.incrementIdentities()
@@ -363,13 +400,22 @@ public actor UserCanalClient {
 
             SDKLogger.debug("Associating user \(userID) with group: \(groupID)", category: .general)
 
-            // Send to batch manager
+            // Get device and session IDs from session manager
+            var deviceID: Data?
+            var sessionID: Data?
+
+            if let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Send to batch manager with device/session IDs
             guard let batcher = self.batcher else {
                 SDKLogger.error("Batch manager not initialized", category: .general)
                 return
             }
 
-            try await batcher.addEvent(groupEvent)
+            try await batcher.addEvent(groupEvent, deviceID: deviceID, sessionID: sessionID)
 
             // Update stats
             stats.incrementGroups()
@@ -427,13 +473,22 @@ public actor UserCanalClient {
 
             SDKLogger.debug("Aliasing user: \(previousId) -> \(userId)", category: .general)
 
-            // Send to batch manager
+            // Get device and session IDs from session manager
+            var deviceID: Data?
+            var sessionID: Data?
+
+            if let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Send to batch manager with device/session IDs
             guard let batcher = self.batcher else {
                 SDKLogger.error("Batch manager not initialized", category: .general)
                 return
             }
 
-            try await batcher.addEvent(aliasEvent)
+            try await batcher.addEvent(aliasEvent, deviceID: deviceID, sessionID: sessionID)
 
             // Update stats (reuse groups counter for now)
             stats.incrementGroups()
@@ -459,6 +514,114 @@ public actor UserCanalClient {
     ) {
         Task { [weak self] in
             await self?.trackRevenue(userID: userID, orderID: orderID, amount: amount, currency: currency, properties: properties)
+        }
+    }
+
+    // MARK: - EventAdvanced
+
+    /// Advanced event tracking with optional device/session ID overrides
+    /// - Parameter event: Advanced event with optional overrides
+    public func eventAdvanced(_ event: EventAdvanced) {
+        Task { [weak self] in
+            await self?.trackAdvanced(event)
+        }
+    }
+
+    /// Internal async advanced event tracking
+    private func trackAdvanced(_ event: EventAdvanced) async {
+        do {
+            guard state == .ready else {
+                SDKLogger.warning("Client not ready, dropping advanced event", category: .client)
+                return
+            }
+
+            // Validate event
+            try event.validate()
+
+            SDKLogger.debug("Tracking advanced event: \(event.name.stringValue) for user: \(event.userID)", category: .general)
+
+            // Create internal event with proper device/session ID handling
+            let timestamp = event.timestamp ?? Date()
+
+            var deviceID = event.deviceID
+            var sessionID = event.sessionID
+
+            if deviceID == nil, let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+            }
+
+            if sessionID == nil, let sessionManager = sessionManager {
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Create internal event for batching
+            let internalEvent = Event(
+                userID: event.userID,
+                name: event.name,
+                eventType: .track,
+                properties: event.properties,
+                timestamp: timestamp
+            )
+
+            // Enrich with device context if available
+            let enrichedEvent = await enrichEventWithDeviceContext(internalEvent)
+
+            // Add to batch queue with device/session ID overrides
+            if let batcher = batcher {
+                try await batcher.addEvent(enrichedEvent, deviceID: deviceID, sessionID: sessionID)
+            }
+
+            stats.incrementEvents()
+
+            SDKLogger.debug("Advanced event queued successfully", category: .general)
+
+        } catch {
+            SDKLogger.error("Failed to track advanced event: \(error)", category: .general)
+            stats.incrementEvents()
+        }
+    }
+
+    // MARK: - Context Events (Internal)
+
+    /// Internal context event tracking (CONTEXT EventType)
+    /// Called automatically by SessionManager - not exposed to developers
+    internal func eventContext(_ event: Event, deviceID: Data?, sessionID: Data?) async {
+        do {
+            guard state == .ready else {
+                SDKLogger.warning("Client not ready, dropping context event", category: .client)
+                return
+            }
+
+            // Validate event
+            try event.validate()
+
+            SDKLogger.debug("Tracking context event: \(event.name.stringValue)", category: .general)
+
+            // SessionManager already provides complete context properties with device context
+            // No need to add device context again to avoid duplication
+            let contextProperties = event.properties
+
+            // Create internal event with CONTEXT type
+            let contextEvent = Event(
+                userID: event.userID,
+                name: event.name,
+                eventType: .context, // Always CONTEXT for internal context events
+                properties: contextProperties,
+                timestamp: event.timestamp
+            )
+
+            // Add to batch queue with device/session ID overrides
+            if let batcher = batcher {
+                try await batcher.addEvent(contextEvent, deviceID: deviceID, sessionID: sessionID)
+            }
+
+            stats.incrementEvents()
+
+            SDKLogger.debug("Context event queued successfully", category: .general)
+
+        } catch {
+            SDKLogger.error("Failed to track context event: \(error)", category: .general)
+            stats.incrementEvents()
         }
     }
 
@@ -499,13 +662,22 @@ public actor UserCanalClient {
 
             SDKLogger.debug("Tracking revenue: \(amount) \(currency) for user: \(userID)", category: .general)
 
-            // Send to batch manager
+            // Get device and session IDs from session manager
+            var deviceID: Data?
+            var sessionID: Data?
+
+            if let sessionManager = sessionManager {
+                deviceID = await sessionManager.getDeviceID()
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Send to batch manager with device/session IDs
             guard let batcher = self.batcher else {
                 SDKLogger.error("Batch manager not initialized", category: .general)
                 return
             }
 
-            try await batcher.addEvent(revenueEvent)
+            try await batcher.addEvent(revenueEvent, deviceID: deviceID, sessionID: sessionID)
 
             // Update stats
             stats.incrementRevenue()

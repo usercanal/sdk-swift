@@ -12,12 +12,13 @@ struct AdvancedEventExample {
     static func main() async {
         print("🚀 UserCanal Swift SDK - Advanced Event Tracking (New Interface)")
 
-        // Configure with advanced options - fire and forget
+        // Configure with sessionTimeout for automatic iOS session management
         UserCanal.shared.configureAsync(
             apiKey: "YOUR_API_KEY",
-            endpoint: "collect.usercanal.com:50000",
+            endpoint: "localhost:50000",
             batchSize: 100,
             flushInterval: 5,
+            sessionTimeout: 10 * 60, // Custom session timeout (default: 30 min)
             logLevel: .debug
         )
 
@@ -25,6 +26,7 @@ struct AdvancedEventExample {
         try? await Task.sleep(for: .seconds(1))
 
         print("📊 Starting advanced tracking scenarios...")
+        // Note: Context events (session, device, app lifecycle) sent automatically
 
         // Scenario 1: Anonymous user browsing
         print("\n1️⃣ Anonymous user browsing...")
@@ -209,8 +211,21 @@ struct AdvancedEventExample {
             "affected_services": ["user_auth", "billing", "analytics"]
         ])
 
-        // Scenario 9: Account switching
-        print("9️⃣ Account switching scenario...")
+        // Scenario 9: Server proxy simulation (EventAdvanced concept)
+        print("9️⃣ Server proxy event simulation...")
+
+        // EventAdvanced with UserCanalClient allows manual device/session ID overrides
+        // iOS apps automatically use keychain device_id and SessionManager session_id
+        UserCanal.shared.track("server_proxy_event", properties: [
+            "event_source": "server_proxy",
+            "client_device_id": "custom_device_123",
+            "client_session_id": "custom_session_456",
+            "proxy_timestamp": Date().timeIntervalSince1970
+        ])
+
+        // Scenario 10: Account switching
+
+        print("🔟 Account switching scenario...")
 
         // User switches to different account
         UserCanal.shared.identify("user_67890", traits: [
@@ -226,8 +241,8 @@ struct AdvancedEventExample {
             "switch_reason": "work_account"
         ])
 
-        // Scenario 10: User logs out
-        print("🔟 User logout...")
+        // Scenario 11: User logs out
+        print("1️⃣1️⃣ User logout...")
 
         UserCanal.shared.track(.userSignedOut, properties: [
             "session_duration_minutes": 45.3,
@@ -248,16 +263,6 @@ struct AdvancedEventExample {
         print("\n🚀 Flushing all events...")
         try? await UserCanal.shared.flush()
 
-        print("✅ Advanced tracking scenarios completed!")
-        print("\n📊 Summary of what happened:")
-        print("   • Device context sent once at session start")
-        print("   • Anonymous events automatically merged with identified user")
-        print("   • Revenue events tracked with detailed properties")
-        print("   • Group analytics for organization membership")
-        print("   • Advanced logging with multiple severity levels")
-        print("   • Account switching handled seamlessly")
-        print("   • Session reset demonstrated")
-        print("   • All events batched and sent efficiently")
-        print("\n🎉 UserCanal's new interface makes analytics simple and powerful!")
+        print("✅ Advanced tracking complete!")
     }
 }

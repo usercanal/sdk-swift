@@ -68,6 +68,7 @@ public class UserCanal {
     ///   - endpoint: Custom endpoint (optional)
     ///   - batchSize: Number of events to batch before sending (optional)
     ///   - flushInterval: Interval in seconds between automatic flushes (optional)
+    ///   - sessionTimeout: Session timeout in seconds (optional, default: 30 minutes)
     ///   - defaultOptOut: Whether users are opted out by default (optional)
     ///   - generateEventIds: Whether to generate client-side event IDs (optional)
     ///   - onError: Error handling callback (optional)
@@ -76,6 +77,7 @@ public class UserCanal {
         endpoint: String? = nil,
         batchSize: Int? = nil,
         flushInterval: Int? = nil,
+        sessionTimeout: TimeInterval? = nil,
         defaultOptOut: Bool? = nil,
         generateEventIds: Bool? = nil,
         logLevel: SystemLogLevel? = nil,
@@ -99,6 +101,7 @@ public class UserCanal {
             flushInterval: flushInterval.map { .seconds(Double($0)) } ?? UserCanalConfig.Defaults.flushInterval,
             enableDebugLogging: autoDebugLogging,
             logLevel: finalLogLevel,
+            sessionTimeout: sessionTimeout ?? UserCanalConfig.Defaults.sessionTimeout,
             defaultOptOut: defaultOptOut ?? UserCanalConfig.Defaults.defaultOptOut,
             generateEventIds: generateEventIds ?? UserCanalConfig.Defaults.generateEventIds
         )
@@ -131,6 +134,7 @@ public class UserCanal {
     ///   - endpoint: Custom endpoint (optional)
     ///   - batchSize: Number of events to batch before sending (optional)
     ///   - flushInterval: Interval in seconds between automatic flushes (optional)
+    ///   - sessionTimeout: Session timeout in seconds (optional, default: 30 minutes)
     ///   - defaultOptOut: Whether users are opted out by default (optional)
     ///   - generateEventIds: Whether to generate client-side event IDs (optional)
     public func configureAsync(
@@ -138,6 +142,7 @@ public class UserCanal {
         endpoint: String? = nil,
         batchSize: Int? = nil,
         flushInterval: Int? = nil,
+        sessionTimeout: TimeInterval? = nil,
         defaultOptOut: Bool? = nil,
         generateEventIds: Bool? = nil,
         logLevel: SystemLogLevel? = nil
@@ -149,6 +154,7 @@ public class UserCanal {
                     endpoint: endpoint,
                     batchSize: batchSize,
                     flushInterval: flushInterval,
+                    sessionTimeout: sessionTimeout,
                     defaultOptOut: defaultOptOut,
                     generateEventIds: generateEventIds,
                     logLevel: logLevel,
@@ -574,8 +580,7 @@ public class UserCanal {
 
         sessionStarted = true
 
-        // Send device context enrichment once per session
-        sendDeviceContextIfNeeded()
+        // Note: Device context now handled by SessionManager
 
         SDKLogger.debug("Session started for user: \(getCurrentUserID())", category: .events)
     }
@@ -601,7 +606,7 @@ public class UserCanal {
             let enrichmentEvent = Event(
                 userID: self?.currentUserID ?? "unknown",
                 name: EventName("device_context_enrichment"),
-                eventType: .enrich,
+                eventType: .context,
                 properties: Properties(contextData)
             )
 

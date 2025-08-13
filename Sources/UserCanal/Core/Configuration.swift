@@ -48,6 +48,9 @@ public struct UserCanalConfig: Sendable {
     /// Maximum number of events to store offline
     public let maxOfflineEvents: Int
 
+    /// Session timeout interval in seconds (nil for default: 30 minutes)
+    public let sessionTimeout: TimeInterval?
+
     /// Whether to enable automatic error reporting
     public let enableErrorReporting: Bool
 
@@ -81,6 +84,7 @@ public struct UserCanalConfig: Sendable {
         collectDeviceContext: Bool = Defaults.collectDeviceContext,
         enableOfflineStorage: Bool = Defaults.enableOfflineStorage,
         maxOfflineEvents: Int = Defaults.maxOfflineEvents,
+        sessionTimeout: TimeInterval? = Defaults.sessionTimeout,
         enableErrorReporting: Bool = Defaults.enableErrorReporting,
         defaultOptOut: Bool = Defaults.defaultOptOut,
         generateEventIds: Bool = Defaults.generateEventIds,
@@ -110,6 +114,7 @@ public struct UserCanalConfig: Sendable {
         self.collectDeviceContext = collectDeviceContext
         self.enableOfflineStorage = enableOfflineStorage
         self.maxOfflineEvents = maxOfflineEvents
+        self.sessionTimeout = sessionTimeout
         self.enableErrorReporting = enableErrorReporting
         self.defaultOptOut = defaultOptOut
         self.generateEventIds = generateEventIds
@@ -245,6 +250,9 @@ extension UserCanalConfig {
 
         /// Default maximum offline events
         public static let maxOfflineEvents = 10000
+
+        /// Default session timeout (30 minutes)
+        public static let sessionTimeout: TimeInterval? = 30 * 60
 
         /// Default error reporting
         public static let enableErrorReporting = true

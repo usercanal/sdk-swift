@@ -36,7 +36,7 @@ struct SimpleEventExample {
         UserCanal.shared.identify("user_123", traits: [
             "email": "user@example.com",
             "plan": "free",
-            "signup_date": Date()
+            "signup_date": "2024-01-15"
         ])
 
         // Track revenue

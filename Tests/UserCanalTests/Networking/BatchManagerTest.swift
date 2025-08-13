@@ -67,7 +67,7 @@ final class BatchManagerTest: XCTestCase {
         let event = Event(userID: "swift_sdk_user1", name: EventName("swift_test_event"))
 
         // This should not crash and should not trigger flush (batch size is 3)
-        try await batchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
 
         print("✅ Single event added without flush")
     }
@@ -81,11 +81,11 @@ final class BatchManagerTest: XCTestCase {
         let event3 = Event(userID: "swift_batch_user3", name: EventName("swift_batch_test3"))
 
         // Add events one by one
-        try await batchManager.addEvent(event1)
-        try await batchManager.addEvent(event2)
+        try await batchManager.addEvent(event1, deviceID: nil, sessionID: nil)
+        try await batchManager.addEvent(event2, deviceID: nil, sessionID: nil)
 
         // Third event should trigger batch flush
-        try await batchManager.addEvent(event3)
+        try await batchManager.addEvent(event3, deviceID: nil, sessionID: nil)
 
         print("✅ Batch flush triggered at correct size")
     }
@@ -95,7 +95,7 @@ final class BatchManagerTest: XCTestCase {
 
         // Add just one event (below batch size)
         let event = Event(userID: "swift_manual_user", name: EventName("swift_manual_test"))
-        try await batchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
 
         // Manual flush
         try await batchManager.flush()
@@ -123,7 +123,7 @@ final class BatchManagerTest: XCTestCase {
             properties: Properties(["test_key": "swift_test_value", "number": 42, "sdk": "swift"])
         )
 
-        try await batchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
         try await batchManager.flush()
 
         print("✅ FlatBuffers event serialization completed")
@@ -154,11 +154,11 @@ final class BatchManagerTest: XCTestCase {
         let event = Event(userID: "swift_mixed_user", name: EventName("swift_mixed_event"))
         let log = LogEntry(level: .info, source: "swift_test", service: "swift_test", message: "Swift SDK mixed test log")
 
-        try await batchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
         try await batchManager.addLog(log)
 
         // Add one more event to trigger flush
-        try await batchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
 
         print("✅ Mixed content batching completed")
     }
@@ -178,7 +178,7 @@ final class BatchManagerTest: XCTestCase {
                 name: EventName("swift_perf_test_\(i)"),
                 properties: Properties(["index": i, "timestamp": Date().timeIntervalSince1970, "sdk": "swift"])
             )
-            try await batchManager.addEvent(event)
+            try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
         }
 
         // Final flush
@@ -250,7 +250,7 @@ final class BatchManagerTest: XCTestCase {
 
         // This test validates that we're using raw TCP, not HTTP
         let event = Event(userID: "swift_tcp_test", name: EventName("swift_tcp_protocol_test"))
-        try await batchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
         try await batchManager.flush()
 
         print("✅ Raw TCP protocol validation completed")
@@ -275,7 +275,7 @@ final class BatchManagerTest: XCTestCase {
         )
 
         let event = Event(userID: "swift_error_test", name: EventName("swift_error_event"))
-        try await badBatchManager.addEvent(event)
+        try await batchManager.addEvent(event, deviceID: nil, sessionID: nil)
 
         // This should handle network errors gracefully
         do {

@@ -17,16 +17,23 @@ public enum schema_event_EventType: UInt8, Enum, Verifiable {
   case group = 3
   case alias = 4
   case enrich = 5
+  case context = 6
 
-  public static var max: schema_event_EventType { return .enrich }
+  public static var max: schema_event_EventType { return .context }
   public static var min: schema_event_EventType { return .unknown }
 }
 
 
 ///  Single event in the CDP system
-///  Field IDs allow optimal memory layout and forward compatibility
-///  Note: session_id (context_id) and message_id can be included in payload
-///  if needed - testing through SDKs to determine if top-level fields are required
+///  Field ordering optimized for collector processing pipeline:
+///  1. event_type: Routing selector - determines which handler/table (FIRST for fast routing)
+///  2. timestamp: Time-series key - primary sort dimension
+///  3. device_id: Identity key - core analytics dimension
+///  4. session_id: Context key - session analytics linking
+///  5. event_name: Optional event name for performance (avoids JSON parsing)
+///  6. payload: Event data - largest field, processed last
+/// 
+///  Field IDs ensure forward compatibility and optimal memory layout
 public struct schema_event_Event: FlatBufferObject, Verifiable {
 
   static func validateVersion() { FlatBuffersVersion_25_2_10() }
@@ -37,50 +44,66 @@ public struct schema_event_Event: FlatBufferObject, Verifiable {
   public init(_ bb: ByteBuffer, o: Int32) { _accessor = Table(bb: bb, position: o) }
 
   private enum VTOFFSET: VOffset {
-    case timestamp = 4
-    case eventType = 6
-    case userId = 8
-    case payload = 10
+    case eventType = 4
+    case timestamp = 6
+    case deviceId = 8
+    case sessionId = 10
+    case eventName = 12
+    case payload = 14
     var v: Int32 { Int32(self.rawValue) }
     var p: VOffset { self.rawValue }
   }
 
-  public var timestamp: UInt64 { let o = _accessor.offset(VTOFFSET.timestamp.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
   public var eventType: schema_event_EventType { let o = _accessor.offset(VTOFFSET.eventType.v); return o == 0 ? .unknown : schema_event_EventType(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unknown }
-  public var hasUserId: Bool { let o = _accessor.offset(VTOFFSET.userId.v); return o == 0 ? false : true }
-  public var userIdCount: Int32 { let o = _accessor.offset(VTOFFSET.userId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
-  public func userId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.userId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
-  public var userId: [UInt8] { return _accessor.getVector(at: VTOFFSET.userId.v) ?? [] }
+  public var timestamp: UInt64 { let o = _accessor.offset(VTOFFSET.timestamp.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
+  public var hasDeviceId: Bool { let o = _accessor.offset(VTOFFSET.deviceId.v); return o == 0 ? false : true }
+  public var deviceIdCount: Int32 { let o = _accessor.offset(VTOFFSET.deviceId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
+  public func deviceId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.deviceId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
+  public var deviceId: [UInt8] { return _accessor.getVector(at: VTOFFSET.deviceId.v) ?? [] }
+  public var hasSessionId: Bool { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? false : true }
+  public var sessionIdCount: Int32 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
+  public func sessionId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
+  public var sessionId: [UInt8] { return _accessor.getVector(at: VTOFFSET.sessionId.v) ?? [] }
+  public var eventName: String? { let o = _accessor.offset(VTOFFSET.eventName.v); return o == 0 ? nil : _accessor.string(at: o) }
+  public var eventNameSegmentArray: [UInt8]? { return _accessor.getVector(at: VTOFFSET.eventName.v) }
   public var hasPayload: Bool { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? false : true }
   public var payloadCount: Int32 { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func payload(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var payload: [UInt8] { return _accessor.getVector(at: VTOFFSET.payload.v) ?? [] }
-  public static func startEvent(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 4) }
-  public static func add(timestamp: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: timestamp, def: 0, at: VTOFFSET.timestamp.p) }
+  public static func startEvent(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 6) }
   public static func add(eventType: schema_event_EventType, _ fbb: inout FlatBufferBuilder) { fbb.add(element: eventType.rawValue, def: 0, at: VTOFFSET.eventType.p) }
-  public static func addVectorOf(userId: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: userId, at: VTOFFSET.userId.p) }
+  public static func add(timestamp: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: timestamp, def: 0, at: VTOFFSET.timestamp.p) }
+  public static func addVectorOf(deviceId: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: deviceId, at: VTOFFSET.deviceId.p) }
+  public static func addVectorOf(sessionId: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: sessionId, at: VTOFFSET.sessionId.p) }
+  public static func add(eventName: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: eventName, at: VTOFFSET.eventName.p) }
   public static func addVectorOf(payload: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: payload, at: VTOFFSET.payload.p) }
   public static func endEvent(_ fbb: inout FlatBufferBuilder, start: UOffset) -> Offset { let end = Offset(offset: fbb.endTable(at: start)); return end }
   public static func createEvent(
     _ fbb: inout FlatBufferBuilder,
-    timestamp: UInt64 = 0,
     eventType: schema_event_EventType = .unknown,
-    userIdVectorOffset userId: Offset = Offset(),
+    timestamp: UInt64 = 0,
+    deviceIdVectorOffset deviceId: Offset = Offset(),
+    sessionIdVectorOffset sessionId: Offset = Offset(),
+    eventNameOffset eventName: Offset = Offset(),
     payloadVectorOffset payload: Offset = Offset()
   ) -> Offset {
     let __start = schema_event_Event.startEvent(&fbb)
-    schema_event_Event.add(timestamp: timestamp, &fbb)
     schema_event_Event.add(eventType: eventType, &fbb)
-    schema_event_Event.addVectorOf(userId: userId, &fbb)
+    schema_event_Event.add(timestamp: timestamp, &fbb)
+    schema_event_Event.addVectorOf(deviceId: deviceId, &fbb)
+    schema_event_Event.addVectorOf(sessionId: sessionId, &fbb)
+    schema_event_Event.add(eventName: eventName, &fbb)
     schema_event_Event.addVectorOf(payload: payload, &fbb)
     return schema_event_Event.endEvent(&fbb, start: __start)
   }
 
   public static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
     var _v = try verifier.visitTable(at: position)
-    try _v.visit(field: VTOFFSET.timestamp.p, fieldName: "timestamp", required: false, type: UInt64.self)
     try _v.visit(field: VTOFFSET.eventType.p, fieldName: "eventType", required: false, type: schema_event_EventType.self)
-    try _v.visit(field: VTOFFSET.userId.p, fieldName: "userId", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
+    try _v.visit(field: VTOFFSET.timestamp.p, fieldName: "timestamp", required: false, type: UInt64.self)
+    try _v.visit(field: VTOFFSET.deviceId.p, fieldName: "deviceId", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
+    try _v.visit(field: VTOFFSET.sessionId.p, fieldName: "sessionId", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
+    try _v.visit(field: VTOFFSET.eventName.p, fieldName: "eventName", required: false, type: ForwardOffset<String>.self)
     try _v.visit(field: VTOFFSET.payload.p, fieldName: "payload", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
     _v.finish()
   }
