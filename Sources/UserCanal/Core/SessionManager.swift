@@ -1,5 +1,12 @@
 // SessionManager.swift
-// UserCanal Swift SDK
+// UserCanal Swift SDK - Session and Device Management
+//
+// CONTEXT Event Strategy:
+// - Session Start: Once per session (app launch or after 30min+ background)
+// - App Background: When user puts app in background
+// - App Foreground: Only when returning after session timeout (30min+)
+// - App Terminate: When app shuts down
+// - Active/Inactive: State tracked but NO context events (too frequent)
 //
 // Copyright © 2024 UserCanal. All rights reserved.
 //
@@ -197,18 +204,22 @@ public actor SessionManager {
     }
 
     private func handleAppDidBecomeActive() async {
-        // Only send event if state actually changed
+        // Only update state, don't send CONTEXT events for active/inactive transitions
+        // These happen too frequently during development and aren't needed for session management
+        // See FEATURES.md for complete CONTEXT event documentation
         if currentAppState != .active {
             currentAppState = .active
-            await sendContextEvent(reason: "app_active")
+            SDKLogger.debug("App became active (no context event sent)", category: .session)
         }
     }
 
     private func handleAppWillResignActive() async {
-        // Only send event if state actually changed
+        // Only update state, don't send CONTEXT events for active/inactive transitions
+        // These happen too frequently during development and aren't needed for session management
+        // See FEATURES.md for complete CONTEXT event documentation
         if currentAppState != .inactive {
             currentAppState = .inactive
-            await sendContextEvent(reason: "app_inactive")
+            SDKLogger.debug("App became inactive (no context event sent)", category: .session)
         }
     }
 

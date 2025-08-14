@@ -534,6 +534,8 @@ public class UserCanal {
         return _isOptedOut
     }
 
+
+
     // MARK: - Lifecycle
 
     /// Manually flush pending events

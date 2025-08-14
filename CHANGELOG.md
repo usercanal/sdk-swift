@@ -1,5 +1,11 @@
 # Changelog
 
+## January 14, 2025
+CONTEXT Events Optimization
+
+- fix: Removed excessive CONTEXT events for app active/inactive transitions
+- docs: Added CONTEXT events documentation in FEATURES.md
+
 ## August 13, 2025
 Schema Optimisations, Session Management & Context Events
 
