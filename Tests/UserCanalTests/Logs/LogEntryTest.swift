@@ -27,16 +27,15 @@ final class LogEntryTest: XCTestCase {
         XCTAssertEqual(logEntry.message, "Test log message")
         XCTAssertNotNil(logEntry.timestamp)
         XCTAssertEqual(logEntry.eventType, .log)
-        XCTAssertEqual(logEntry.contextID, 0)
+        XCTAssertEqual(logEntry.sessionID, Data())
     }
 
     func testLogEntryWithCustomParameters() {
         let customTimestamp = Date(timeIntervalSince1970: 1640995200)
-        let contextID: UInt64 = 12345
-
+        let sessionID = Data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF1])
         let logEntry = LogEntry(
             eventType: .enrich,
-            contextID: contextID,
+            sessionID: sessionID,
             level: .error,
             timestamp: customTimestamp,
             source: "custom-source",
@@ -46,7 +45,7 @@ final class LogEntryTest: XCTestCase {
         )
 
         XCTAssertEqual(logEntry.eventType, .enrich)
-        XCTAssertEqual(logEntry.contextID, contextID)
+        XCTAssertEqual(logEntry.sessionID, sessionID)
         XCTAssertEqual(logEntry.level, .error)
         XCTAssertEqual(logEntry.timestamp, customTimestamp)
         XCTAssertEqual(logEntry.source, "custom-source")
@@ -65,7 +64,7 @@ final class LogEntryTest: XCTestCase {
         )
 
         XCTAssertEqual(logEntry.eventType, .log)
-        XCTAssertEqual(logEntry.contextID, 0)
+        XCTAssertEqual(logEntry.sessionID, Data())
         XCTAssertTrue(logEntry.data.isEmpty)
     }
 
@@ -321,11 +320,10 @@ final class LogEntryTest: XCTestCase {
     // MARK: - Context ID Tests
 
     func testLogEntryWithVariousContextIDs() {
-        let contextIDs: [UInt64] = [0, 1, 12345, UInt64.max]
-
-        for contextID in contextIDs {
+        let sessionIDs: [Data] = [Data(), Data([0x01]), Data([0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF1])]
+        for sessionID in sessionIDs {
             let logEntry = LogEntry(
-                contextID: contextID,
+                sessionID: sessionID,
                 level: .info,
                 timestamp: Date(),
                 source: "context-test",
@@ -471,7 +469,7 @@ final class LogEntryTest: XCTestCase {
 
         let logEntry1 = LogEntry(
             eventType: .log,
-            contextID: 123,
+            sessionID: Data([0x12, 0x34]),
             level: .info,
             timestamp: timestamp,
             source: "same-source",
@@ -482,7 +480,7 @@ final class LogEntryTest: XCTestCase {
 
         let logEntry2 = LogEntry(
             eventType: .log,
-            contextID: 123,
+            sessionID: Data([0x12, 0x34]),
             level: .info,
             timestamp: timestamp,
             source: "same-source",

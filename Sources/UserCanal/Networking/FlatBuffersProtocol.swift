@@ -280,6 +280,9 @@ public struct FlatBuffersProtocol {
             let sourceVector = builder.create(string: log.source)
             let serviceVector = builder.create(string: log.service)
 
+            // Create session ID vector from UUID Data (16 bytes)
+            let sessionIdVector = builder.createVector(bytes: Array(log.sessionID))
+
             // Convert timestamp to milliseconds
             let timestampMs = UInt64(log.timestamp.timeIntervalSince1970 * 1000)
 
@@ -287,7 +290,7 @@ public struct FlatBuffersProtocol {
             let logOffset = schema_log_LogEntry.createLogEntry(
                 &builder,
                 eventType: eventType,
-                contextId: log.contextID,
+                sessionIdVectorOffset: sessionIdVector,
                 level: logLevel,
                 timestamp: timestampMs,
                 sourceOffset: sourceVector,

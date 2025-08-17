@@ -854,10 +854,28 @@ public actor UserCanalClient {
                 return
             }
 
-            // Validate log entry
-            try entry.validate()
+            // Ensure log entry has a session ID for correlation
+            var finalEntry = entry
+            if entry.sessionID.isEmpty {
+                if let sessionManager = sessionManager {
+                    let sessionID = await sessionManager.getCurrentSessionID()
+                    finalEntry = LogEntry(
+                        eventType: entry.eventType,
+                        sessionID: sessionID,
+                        level: entry.level,
+                        timestamp: entry.timestamp,
+                        source: entry.source,
+                        service: entry.service,
+                        message: entry.message,
+                        data: entry.data
+                    )
+                }
+            }
 
-            SDKLogger.debug("Log \(entry.level): \(entry.message) [service: \(entry.service)]", category: .general)
+            // Validate log entry
+            try finalEntry.validate()
+
+            SDKLogger.debug("Log \(finalEntry.level): \(finalEntry.message) [service: \(finalEntry.service)]", category: .general)
 
             // Send to batch manager
             guard let batcher = self.batcher else {
@@ -865,7 +883,7 @@ public actor UserCanalClient {
                 return
             }
 
-            try await batcher.addLog(entry)
+            try await batcher.addLog(finalEntry)
 
             // Update stats
             stats.incrementLogs()
@@ -888,17 +906,41 @@ public actor UserCanalClient {
                 return
             }
 
-            // Validate all entries
+            // Get session ID once for the batch
+            var sessionID = Data()
+            if let sessionManager = sessionManager {
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
+            // Ensure all entries have session IDs and validate them
+            var finalEntries: [LogEntry] = []
             for (index, entry) in entries.enumerated() {
+                var finalEntry = entry
+
+                // Add session ID if missing
+                if entry.sessionID.isEmpty && !sessionID.isEmpty {
+                    finalEntry = LogEntry(
+                        eventType: entry.eventType,
+                        sessionID: sessionID,
+                        level: entry.level,
+                        timestamp: entry.timestamp,
+                        source: entry.source,
+                        service: entry.service,
+                        message: entry.message,
+                        data: entry.data
+                    )
+                }
+
                 do {
-                    try entry.validate()
+                    try finalEntry.validate()
+                    finalEntries.append(finalEntry)
                 } catch {
                     SDKLogger.error("Invalid log entry at index \(index): \(error)", category: .general)
                     return
                 }
             }
 
-            SDKLogger.debug("Logging batch: \(entries.count) entries", category: .general)
+            SDKLogger.debug("Batch logging \(finalEntries.count) entries", category: .general)
 
             // Send to batch manager
             guard let batcher = self.batcher else {
@@ -906,7 +948,7 @@ public actor UserCanalClient {
                 return
             }
 
-            for entry in entries {
+            for entry in finalEntries {
                 try await batcher.addLog(entry)
             }
 
@@ -939,9 +981,16 @@ public actor UserCanalClient {
                 return
             }
 
+            // Get session ID from session manager for log correlation
+            var sessionID = Data()
+            if let sessionManager = sessionManager {
+                sessionID = await sessionManager.getCurrentSessionID()
+            }
+
             // Create log entry with LogCollect type (type 1)
             let logEntry = LogEntry(
                 eventType: .log,  // This maps to LogCollect (type 1)
+                sessionID: sessionID,
                 level: level,
                 source: getSourceInfo(),
                 service: service,

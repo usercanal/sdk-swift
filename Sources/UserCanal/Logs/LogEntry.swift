@@ -10,39 +10,39 @@ import Foundation
 
 /// Represents a structured log entry
 public struct LogEntry: Sendable {
-    
+
     // MARK: - Properties
-    
+
     /// Type of log event for routing
     public let eventType: LogEventType
-    
-    /// Context ID for distributed tracing
-    public let contextID: UInt64
-    
+
+    /// Session ID for distributed tracing and correlation (16-byte UUID)
+    public let sessionID: Data
+
     /// Log level/severity
     public let level: LogLevel
-    
+
     /// Timestamp when the log was created
     public let timestamp: Date
-    
+
     /// Source identifier (hostname, instance, etc.)
     public let source: String
-    
+
     /// Service name that generated the log
     public let service: String
-    
+
     /// Log message
     public let message: String
-    
+
     /// Structured log data
     public let data: Properties
-    
+
     // MARK: - Initialization
-    
+
     /// Create a new log entry
     public init(
         eventType: LogEventType = .log,
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         level: LogLevel,
         timestamp: Date = Date(),
         source: String = ProcessInfo.processInfo.hostName,
@@ -51,7 +51,7 @@ public struct LogEntry: Sendable {
         data: Properties = Properties()
     ) {
         self.eventType = eventType
-        self.contextID = contextID
+        self.sessionID = sessionID
         self.level = level
         self.timestamp = timestamp
         self.source = source
@@ -59,11 +59,11 @@ public struct LogEntry: Sendable {
         self.message = message
         self.data = data
     }
-    
+
     /// Create a log entry with data builder
     public init(
         eventType: LogEventType = .log,
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         level: LogLevel,
         timestamp: Date = Date(),
         source: String = ProcessInfo.processInfo.hostName,
@@ -72,7 +72,7 @@ public struct LogEntry: Sendable {
         data: () -> Properties
     ) {
         self.eventType = eventType
-        self.contextID = contextID
+        self.sessionID = sessionID
         self.level = level
         self.timestamp = timestamp
         self.source = source
@@ -95,7 +95,7 @@ public enum LogLevel: UInt8, Sendable, CaseIterable, Codable {
     case info = 6       // Informational messages
     case debug = 7      // Debug-level messages
     case trace = 8      // Detailed trace information
-    
+
     /// Human-readable description
     public var description: String {
         switch self {
@@ -110,7 +110,7 @@ public enum LogLevel: UInt8, Sendable, CaseIterable, Codable {
         case .trace: return "TRACE"
         }
     }
-    
+
     /// Short string representation
     public var shortString: String {
         switch self {
@@ -134,7 +134,7 @@ public enum LogEventType: UInt8, Sendable, CaseIterable, Codable {
     case unknown = 0
     case log = 1       // Standard log collection (LogCollect)
     case enrich = 2    // Log enrichment/annotation (LogEnrich)
-    
+
     /// Human-readable description
     public var description: String {
         switch self {
@@ -153,11 +153,11 @@ extension LogEntry {
         guard !service.isEmpty else {
             throw UserCanalError.validationError(field: "service", reason: "Service name cannot be empty")
         }
-        
+
         guard !message.isEmpty else {
             throw UserCanalError.validationError(field: "message", reason: "Log message cannot be empty")
         }
-        
+
         guard !source.isEmpty else {
             throw UserCanalError.validationError(field: "source", reason: "Source cannot be empty")
         }
@@ -191,18 +191,18 @@ extension LogLevel: Comparable {
 // MARK: - Convenience Constructors
 
 extension LogEntry {
-    
+
     /// Create an info log entry
     public static func info(
         service: String,
         message: String,
         data: Properties = Properties(),
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         source: String = ProcessInfo.processInfo.hostName
     ) -> LogEntry {
         return LogEntry(
             eventType: .log,
-            contextID: contextID,
+            sessionID: sessionID,
             level: .info,
             source: source,
             service: service,
@@ -210,18 +210,18 @@ extension LogEntry {
             data: data
         )
     }
-    
+
     /// Create an error log entry
     public static func error(
         service: String,
         message: String,
         data: Properties = Properties(),
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         source: String = ProcessInfo.processInfo.hostName
     ) -> LogEntry {
         return LogEntry(
             eventType: .log,
-            contextID: contextID,
+            sessionID: sessionID,
             level: .error,
             source: source,
             service: service,
@@ -229,18 +229,18 @@ extension LogEntry {
             data: data
         )
     }
-    
+
     /// Create a debug log entry
     public static func debug(
         service: String,
         message: String,
         data: Properties = Properties(),
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         source: String = ProcessInfo.processInfo.hostName
     ) -> LogEntry {
         return LogEntry(
             eventType: .log,
-            contextID: contextID,
+            sessionID: sessionID,
             level: .debug,
             source: source,
             service: service,
@@ -248,18 +248,18 @@ extension LogEntry {
             data: data
         )
     }
-    
+
     /// Create a warning log entry
     public static func warning(
         service: String,
         message: String,
         data: Properties = Properties(),
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         source: String = ProcessInfo.processInfo.hostName
     ) -> LogEntry {
         return LogEntry(
             eventType: .log,
-            contextID: contextID,
+            sessionID: sessionID,
             level: .warning,
             source: source,
             service: service,
@@ -267,18 +267,18 @@ extension LogEntry {
             data: data
         )
     }
-    
+
     /// Create an enrichment log entry
     public static func enrichment(
         service: String,
         message: String,
         data: Properties = Properties(),
-        contextID: UInt64 = 0,
+        sessionID: Data = Data(),
         source: String = ProcessInfo.processInfo.hostName
     ) -> LogEntry {
         return LogEntry(
             eventType: .enrich,
-            contextID: contextID,
+            sessionID: sessionID,
             level: .info,
             source: source,
             service: service,

@@ -50,7 +50,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
 
   private enum VTOFFSET: VOffset {
     case eventType = 4
-    case contextId = 6
+    case sessionId = 6
     case level = 8
     case timestamp = 10
     case source = 12
@@ -61,7 +61,10 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   }
 
   public var eventType: schema_log_LogEventType { let o = _accessor.offset(VTOFFSET.eventType.v); return o == 0 ? .unknown : schema_log_LogEventType(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unknown }
-  public var contextId: UInt64 { let o = _accessor.offset(VTOFFSET.contextId.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
+  public var hasSessionId: Bool { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? false : true }
+  public var sessionIdCount: Int32 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
+  public func sessionId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
+  public var sessionId: [UInt8] { return _accessor.getVector(at: VTOFFSET.sessionId.v) ?? [] }
   public var level: schema_log_LogLevel { let o = _accessor.offset(VTOFFSET.level.v); return o == 0 ? .emergency : schema_log_LogLevel(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .emergency }
   public var timestamp: UInt64 { let o = _accessor.offset(VTOFFSET.timestamp.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
   public var source: String? { let o = _accessor.offset(VTOFFSET.source.v); return o == 0 ? nil : _accessor.string(at: o) }
@@ -74,7 +77,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   public var payload: [UInt8] { return _accessor.getVector(at: VTOFFSET.payload.v) ?? [] }
   public static func startLogEntry(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 7) }
   public static func add(eventType: schema_log_LogEventType, _ fbb: inout FlatBufferBuilder) { fbb.add(element: eventType.rawValue, def: 0, at: VTOFFSET.eventType.p) }
-  public static func add(contextId: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: contextId, def: 0, at: VTOFFSET.contextId.p) }
+  public static func addVectorOf(sessionId: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: sessionId, at: VTOFFSET.sessionId.p) }
   public static func add(level: schema_log_LogLevel, _ fbb: inout FlatBufferBuilder) { fbb.add(element: level.rawValue, def: 0, at: VTOFFSET.level.p) }
   public static func add(timestamp: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: timestamp, def: 0, at: VTOFFSET.timestamp.p) }
   public static func add(source: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: source, at: VTOFFSET.source.p) }
@@ -84,7 +87,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   public static func createLogEntry(
     _ fbb: inout FlatBufferBuilder,
     eventType: schema_log_LogEventType = .unknown,
-    contextId: UInt64 = 0,
+    sessionIdVectorOffset sessionId: Offset = Offset(),
     level: schema_log_LogLevel = .emergency,
     timestamp: UInt64 = 0,
     sourceOffset source: Offset = Offset(),
@@ -93,7 +96,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   ) -> Offset {
     let __start = schema_log_LogEntry.startLogEntry(&fbb)
     schema_log_LogEntry.add(eventType: eventType, &fbb)
-    schema_log_LogEntry.add(contextId: contextId, &fbb)
+    schema_log_LogEntry.addVectorOf(sessionId: sessionId, &fbb)
     schema_log_LogEntry.add(level: level, &fbb)
     schema_log_LogEntry.add(timestamp: timestamp, &fbb)
     schema_log_LogEntry.add(source: source, &fbb)
@@ -105,7 +108,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   public static func verify<T>(_ verifier: inout Verifier, at position: Int, of type: T.Type) throws where T: Verifiable {
     var _v = try verifier.visitTable(at: position)
     try _v.visit(field: VTOFFSET.eventType.p, fieldName: "eventType", required: false, type: schema_log_LogEventType.self)
-    try _v.visit(field: VTOFFSET.contextId.p, fieldName: "contextId", required: false, type: UInt64.self)
+    try _v.visit(field: VTOFFSET.sessionId.p, fieldName: "sessionId", required: false, type: ForwardOffset<Vector<UInt8, UInt8>>.self)
     try _v.visit(field: VTOFFSET.level.p, fieldName: "level", required: false, type: schema_log_LogLevel.self)
     try _v.visit(field: VTOFFSET.timestamp.p, fieldName: "timestamp", required: false, type: UInt64.self)
     try _v.visit(field: VTOFFSET.source.p, fieldName: "source", required: false, type: ForwardOffset<String>.self)
