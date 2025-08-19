@@ -122,7 +122,7 @@ public actor BatchManager {
                 await networkClient.disconnect()
             }
 
-            SDKLogger.info("Events sent successfully (count: \(items.count))", category: .batching)
+            SDKLogger.info("Events transmitted successfully (\(items.count) events)", category: .batching)
         } catch {
             SDKLogger.error("Failed to send events", error: error, category: .batching)
             throw error

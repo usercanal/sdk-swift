@@ -110,7 +110,6 @@ public actor UserCanalClient {
             self.sessionManager = sessionManager
 
             self.state = .ready
-            SDKLogger.info("Client ready", category: .client)
 
         } catch {
             self.state = .failed(error)
@@ -595,7 +594,7 @@ public actor UserCanalClient {
             // Validate event
             try event.validate()
 
-            SDKLogger.debug("Tracking context event: \(event.name.stringValue)", category: .general)
+            SDKLogger.info("Context event \"\(event.name.stringValue)\" sent", category: .events)
 
             // SessionManager already provides complete context properties with device context
             // No need to add device context again to avoid duplication
@@ -617,7 +616,7 @@ public actor UserCanalClient {
 
             stats.incrementEvents()
 
-            SDKLogger.debug("Context event queued successfully", category: .general)
+            SDKLogger.trace("Context event queued successfully", category: .events)
 
         } catch {
             SDKLogger.error("Failed to track context event: \(error)", category: .general)

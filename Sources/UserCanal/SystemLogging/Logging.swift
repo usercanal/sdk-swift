@@ -73,7 +73,10 @@ public actor SDKLogger {
         guard level.priority <= logLevel.priority else { return }
 
         let logger = loggerFor(category: category)
-        let formattedMessage = "[\(level.rawValue.uppercased())] UserCanal: \(message)"
+
+        // Add timestamp for better debugging
+        let timestamp = DateFormatter.timestampFormatter.string(from: Date())
+        let formattedMessage = "[\(timestamp)] [\(level.rawValue.uppercased())] UserCanal: \(message)"
 
         // Use appropriate OSLog level
         switch level.osLogType {
@@ -192,7 +195,7 @@ extension SDKLogger {
         self.logLevel = logLevel
 
         if debugEnabled {
-            info("Logging configured: debug enabled, level: \(logLevel.rawValue)")
+            info("SDK logging configured (level: \(logLevel.rawValue))", category: .config)
         }
     }
 
@@ -200,14 +203,14 @@ extension SDKLogger {
     public static func enableDebug() {
         isDebugEnabled = true
         logLevel = .debug
-        info("Debug logging enabled")
+        info("Debug logging enabled", category: .config)
     }
 
     /// Disable debug logging
     public static func disableDebug() {
         isDebugEnabled = false
         logLevel = .info
-        info("Debug logging disabled")
+        info("Debug logging disabled", category: .config)
     }
 }
 
@@ -239,4 +242,16 @@ extension SDKLogger {
     public static func clientActivity(_ message: String, level: SystemLogLevel = .info) {
         log(level, message, category: .client)
     }
+}
+
+// MARK: - DateFormatter Extension
+
+extension DateFormatter {
+    /// Shared timestamp formatter for consistent log formatting
+    static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
 }

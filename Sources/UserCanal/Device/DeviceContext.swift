@@ -32,16 +32,16 @@ public actor DeviceContext {
     /// Get current device context as properties
     /// - Returns: Dictionary of device context properties
     public func getContext() async -> [String: any Sendable] {
-        SDKLogger.debug("DeviceContext.getContext() called", category: .device)
+        SDKLogger.trace("DeviceContext.getContext() called", category: .device)
         // Check if cache is still valid
         if let cached = cachedContext,
            let lastUpdate = lastUpdateTime,
            Date().timeIntervalSince(lastUpdate) < cacheInterval {
-            SDKLogger.debug("Using cached device context with \(cached.count) properties", category: .device)
+            SDKLogger.trace("Using cached device context with \(cached.count) properties", category: .device)
             return cached
         }
 
-        SDKLogger.debug("Collecting fresh device context...", category: .device)
+        SDKLogger.trace("Collecting fresh device context...", category: .device)
         // Collect fresh context
         let context = await collectDeviceContext()
 
@@ -49,7 +49,7 @@ public actor DeviceContext {
         cachedContext = context
         lastUpdateTime = Date()
 
-        SDKLogger.debug("Device context collected: \(context.count) properties", category: .device)
+        SDKLogger.trace("Device context collected: \(context.count) properties", category: .device)
         return context
     }
 
@@ -68,11 +68,11 @@ public actor DeviceContext {
         // Basic device information
         let deviceType = await getDeviceType()
         context["device_type"] = deviceType.rawValue
-        SDKLogger.debug("Device type: \(deviceType.rawValue)", category: .device)
+        SDKLogger.trace("Device type: \(deviceType.rawValue)", category: .device)
 
         let osType = getOperatingSystem()
         context["operating_system"] = osType.rawValue
-        SDKLogger.debug("Operating system: \(osType.rawValue)", category: .device)
+        SDKLogger.trace("Operating system: \(osType.rawValue)", category: .device)
 
         context["os_version"] = getOSVersion()
         context["device_model"] = await getDeviceModel()
@@ -80,11 +80,11 @@ public actor DeviceContext {
         // App information
         let appVersion = getAppVersion()
         context["app_version"] = appVersion
-        SDKLogger.debug("App version: \(appVersion)", category: .device)
+        SDKLogger.trace("App version: \(appVersion)", category: .device)
 
         let appBuild = getAppBuild()
         context["app_build"] = appBuild
-        SDKLogger.debug("App build: \(appBuild)", category: .device)
+        SDKLogger.trace("App build: \(appBuild)", category: .device)
 
         context["app_bundle_id"] = getBundleIdentifier()
 
@@ -129,9 +129,9 @@ public actor DeviceContext {
         // App state
         context["app_state"] = await getAppState()
 
-        SDKLogger.debug("Final device context has \(context.count) properties", category: .device)
+        SDKLogger.trace("Final device context has \(context.count) properties", category: .device)
         let keys = Array(context.keys.prefix(10))
-        SDKLogger.debug("Device context keys: \(keys)", category: .device)
+        SDKLogger.trace("Device context keys: \(keys)", category: .device)
 
         return context
     }

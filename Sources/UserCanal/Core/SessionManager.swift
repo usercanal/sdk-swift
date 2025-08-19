@@ -72,8 +72,6 @@ public actor SessionManager {
         sessionTimeout: TimeInterval = defaultSessionTimeout,
         notificationCenter: NotificationCenter = .default
     ) {
-        SDKLogger.debug("SessionManager init starting", category: .session)
-
         self.client = client
         self.sessionTimeout = sessionTimeout
         self.notificationCenter = notificationCenter
@@ -81,26 +79,24 @@ public actor SessionManager {
 
         // Load or generate device ID
         self.deviceID = Self.loadOrGenerateDeviceID()
-        SDKLogger.debug("Device ID loaded/generated: \(self.deviceID.map { String(format: "%02x", $0) }.joined())", category: .session)
 
         // Generate initial session ID
         self.currentSessionID = Self.generateSessionID()
-        SDKLogger.debug("Session ID generated: \(self.currentSessionID.map { String(format: "%02x", $0) }.joined())", category: .session)
+
+        // Log consolidated session info
+        let deviceIdStr = self.deviceID.map { String(format: "%02x", $0) }.joined()
+        let sessionIdStr = self.currentSessionID.map { String(format: "%02x", $0) }.joined()
+        SDKLogger.info("Session started (Device: \(deviceIdStr), Session: \(sessionIdStr))", category: .session)
 
         // Send initial context event FIRST, then set up lifecycle observers
         // This prevents duplicate context events on app launch
         Task {
-            SDKLogger.debug("About to send initial context event", category: .session)
+            SDKLogger.trace("Sending initial context event", category: .session)
             await sendInitialContextEvent()
-            SDKLogger.debug("Initial context event sent", category: .session)
 
-            // Now set up lifecycle observers after initial context is sent
-            SDKLogger.debug("Setting up app lifecycle observers", category: .session)
+            SDKLogger.trace("Setting up app lifecycle observers", category: .session)
             await setupAppLifecycleObservers()
-            SDKLogger.debug("App lifecycle observers setup complete", category: .session)
         }
-
-        SDKLogger.debug("SessionManager init complete", category: .session)
     }
 
     // MARK: - Public Interface
@@ -209,7 +205,7 @@ public actor SessionManager {
         // See FEATURES.md for complete CONTEXT event documentation
         if currentAppState != .active {
             currentAppState = .active
-            SDKLogger.debug("App became active (no context event sent)", category: .session)
+            SDKLogger.debug("App state changed: active", category: .session)
         }
     }
 
@@ -219,7 +215,7 @@ public actor SessionManager {
         // See FEATURES.md for complete CONTEXT event documentation
         if currentAppState != .inactive {
             currentAppState = .inactive
-            SDKLogger.debug("App became inactive (no context event sent)", category: .session)
+            SDKLogger.debug("App state changed: inactive", category: .session)
         }
     }
 
@@ -253,7 +249,7 @@ public actor SessionManager {
            let lastReason = lastContextEventReason,
            lastReason == reason,
            now.timeIntervalSince(lastTime) < contextEventCooldown {
-            SDKLogger.debug("Skipping duplicate context event: \(reason)", category: .session)
+            SDKLogger.trace("Skipping duplicate context event: \(reason)", category: .session)
             return
         }
 
@@ -293,7 +289,7 @@ public actor SessionManager {
             properties: contextProperties
         )
 
-        SDKLogger.debug("Sending context event: \(eventName.stringValue) - \(reason)", category: .session)
+        SDKLogger.info("Context event \"\(eventName.stringValue)\" sent", category: .session)
 
         // Send context event using internal method with explicit device/session IDs
         await client.eventContext(contextEvent, deviceID: deviceID, sessionID: currentSessionID)
@@ -311,16 +307,16 @@ public actor SessionManager {
         }
 
         // Get comprehensive device context and merge it
-        SDKLogger.debug("About to collect device context...", category: .session)
+        SDKLogger.trace("Collecting device context...", category: .session)
         let deviceInfo = await deviceContext.getContext()
 
         if deviceInfo.isEmpty {
             SDKLogger.warning("Device context is EMPTY! No device data collected!", category: .session)
         } else {
-            SDKLogger.debug("Device context collected: \(deviceInfo.count) properties", category: .session)
+            SDKLogger.trace("Device context collected: \(deviceInfo.count) properties", category: .session)
             // Log first few keys to see what we got
             let firstKeys = Array(deviceInfo.keys.prefix(5))
-            SDKLogger.debug("First device context keys: \(firstKeys)", category: .session)
+            SDKLogger.trace("Device context keys: \(firstKeys)", category: .session)
         }
 
         for (key, value) in deviceInfo {
@@ -329,65 +325,64 @@ public actor SessionManager {
 
         // Create Properties from the dictionary
         let properties = Properties(sendable: contextDict)
-        SDKLogger.debug("Final context properties count: \(properties.count)", category: .session)
+        SDKLogger.trace("Final context properties count: \(properties.count)", category: .session)
 
         // Log specific device properties we expect
         if let appVersion = properties["app_version"] {
-            SDKLogger.debug("✅ app_version found: \(appVersion)", category: .session)
+            SDKLogger.trace("✅ app_version found: \(appVersion)", category: .session)
         } else {
             SDKLogger.warning("❌ app_version MISSING", category: .session)
         }
 
         if let deviceType = properties["device_type"] {
-            SDKLogger.debug("✅ device_type found: \(deviceType)", category: .session)
+            SDKLogger.trace("✅ device_type found: \(deviceType)", category: .session)
         } else {
             SDKLogger.warning("❌ device_type MISSING", category: .session)
         }
 
         if let batteryLevel = properties["battery_level"] {
-            SDKLogger.debug("✅ battery_level found: \(batteryLevel)", category: .session)
+            SDKLogger.trace("✅ battery_level found: \(batteryLevel)", category: .session)
         } else {
-            SDKLogger.debug("ℹ️ battery_level not available (normal on simulator)", category: .session)
+            SDKLogger.trace("ℹ️ battery_level not available (normal on simulator)", category: .session)
         }
 
         return properties
     }
 
     private func sendInitialContextEvent() async {
-        SDKLogger.debug("sendInitialContextEvent() called", category: .session)
+        SDKLogger.trace("sendInitialContextEvent() called", category: .session)
 
         // Small delay to ensure app state is properly initialized
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-        SDKLogger.debug("Initial delay complete", category: .session)
+        SDKLogger.trace("Initial delay complete", category: .session)
 
         // Update current app state before sending
         #if os(iOS) || os(visionOS)
         let appState = await MainActor.run {
             switch UIApplication.shared.applicationState {
             case .active:
-                SDKLogger.debug("App state detected: active", category: .session)
+                SDKLogger.trace("App state detected: active", category: .session)
                 return AppState.active
             case .inactive:
-                SDKLogger.debug("App state detected: inactive", category: .session)
+                SDKLogger.trace("App state detected: inactive", category: .session)
                 return AppState.inactive
             case .background:
-                SDKLogger.debug("App state detected: background", category: .session)
+                SDKLogger.trace("App state detected: background", category: .session)
                 return AppState.background
             @unknown default:
-                SDKLogger.debug("App state detected: unknown", category: .session)
+                SDKLogger.trace("App state detected: unknown", category: .session)
                 return AppState.unknown
             }
         }
         currentAppState = appState
-        SDKLogger.debug("Current app state set to: \(appState.rawValue)", category: .session)
+        SDKLogger.trace("Current app state set to: \(appState.rawValue)", category: .session)
         #endif
 
-        // Send initial context event (bypasses cooldown for first event)
+        // Send session start context event
         lastContextEventReason = nil
         lastContextEventTime = nil
-        SDKLogger.debug("About to call sendContextEvent with reason: session_start", category: .session)
+        SDKLogger.trace("Sending session_start context event", category: .session)
         await sendContextEvent(reason: "session_start")
-        SDKLogger.debug("sendContextEvent(session_start) completed", category: .session)
     }
 
     private func getAppInfo() -> [String: String]? {

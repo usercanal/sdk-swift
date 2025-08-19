@@ -125,7 +125,7 @@ public class UserCanal {
         initializationState = .ready
         await processQueuedEvents()
 
-        SDKLogger.info("SDK configured successfully", category: .client)
+        SDKLogger.info("SDK initialized successfully", category: .client)
     }
 
     /// Configure UserCanal with API key and optional settings (sync - fires and forgets)
@@ -175,12 +175,12 @@ public class UserCanal {
     ///   - properties: Event properties (optional)
     public func track(_ eventName: EventName, properties: Properties = Properties()) {
         guard !_isOptedOut else {
-            SDKLogger.debug("Event dropped - user opted out", category: .events)
+            SDKLogger.trace("Event dropped - user opted out", category: .events)
             return
         }
 
         let propertiesInfo = properties.count > 0 ? ": \(properties)" : ""
-        SDKLogger.debug("Tracked event \"\(eventName.stringValue)\"\(propertiesInfo)", category: .events)
+        SDKLogger.info("Tracked event \"\(eventName.stringValue)\"\(propertiesInfo)", category: .events)
 
         // If ready, process immediately
         if isReady {
@@ -230,12 +230,12 @@ public class UserCanal {
     /// - Parameter event: The enrichment event to send
     private func enrich(event: Event) async {
         guard !_isOptedOut else {
-            SDKLogger.debug("Enrichment dropped - user opted out", category: .events)
+            SDKLogger.trace("Enrichment dropped - user opted out", category: .events)
             return
         }
 
         let propertiesInfo = event.properties.count > 0 ? ": \(Array(event.properties.keys).prefix(3).joined(separator: ", "))" : ""
-        SDKLogger.debug("Enriched with \(event.name.stringValue.replacingOccurrences(of: "_", with: " "))\(propertiesInfo)", category: .events)
+        SDKLogger.trace("Enriched with \(event.name.stringValue.replacingOccurrences(of: "_", with: " "))\(propertiesInfo)", category: .events)
         SDKLogger.trace("Enrich event: \(event.name.stringValue)", category: .events)
 
         // If ready, process immediately
@@ -274,12 +274,12 @@ public class UserCanal {
         properties: Properties = Properties()
     ) {
         guard !_isOptedOut else {
-            SDKLogger.debug("Revenue event dropped - user opted out", category: .events)
+            SDKLogger.trace("Revenue event dropped - user opted out", category: .events)
             return
         }
 
         let propertiesInfo = properties.count > 0 ? ": \(properties)" : ""
-        SDKLogger.debug("Tracked revenue \(amount) \(currency) for order \"\(orderID)\"\(propertiesInfo)", category: .events)
+        SDKLogger.info("Tracked revenue \(amount) \(currency) for order \"\(orderID)\"\(propertiesInfo)", category: .events)
 
         // If ready, process immediately
         if isReady {
@@ -324,12 +324,12 @@ public class UserCanal {
     ///   - traits: User traits/properties (optional)
     public func identify(_ userID: String, traits: Properties = Properties()) {
         guard !_isOptedOut else {
-            SDKLogger.debug("Identify event dropped - user opted out", category: .events)
+            SDKLogger.trace("Identify event dropped - user opted out", category: .events)
             return
         }
 
         let traitsInfo = traits.count > 0 ? ": \(traits)" : ""
-        SDKLogger.debug("Identified user \"\(userID)\"\(traitsInfo)", category: .events)
+        SDKLogger.info("Identified user \"\(userID)\"\(traitsInfo)", category: .events)
 
         currentUserID = userID
 
@@ -377,12 +377,12 @@ public class UserCanal {
     ///   - properties: Group properties (optional)
     public func group(_ groupID: String, properties: Properties = Properties()) {
         guard !_isOptedOut else {
-            SDKLogger.debug("Group event dropped - user opted out", category: .events)
+            SDKLogger.trace("Group event dropped - user opted out", category: .events)
             return
         }
 
         let propertiesInfo = properties.count > 0 ? ": \(properties)" : ""
-        SDKLogger.debug("Associated user with group \"\(groupID)\"\(propertiesInfo)", category: .events)
+        SDKLogger.info("Associated user with group \"\(groupID)\"\(propertiesInfo)", category: .events)
 
         // If ready, process immediately
         if isReady {
@@ -423,7 +423,7 @@ public class UserCanal {
         data: Properties = Properties()
     ) {
         let dataInfo = data.count > 0 ? ": \(data)" : ""
-        SDKLogger.debug("Log \(level): \(message) [service: \(service)]\(dataInfo)", category: .events)
+        SDKLogger.info("Log \(level): \(message) [service: \(service)]\(dataInfo)", category: .events)
 
         guard isReady else {
             return
@@ -471,11 +471,11 @@ public class UserCanal {
     ///   - userId: New user identifier to merge with
     public func alias(_ previousId: String, userId: String) {
         guard !_isOptedOut else {
-            SDKLogger.debug("Alias event dropped - user opted out", category: .events)
+            SDKLogger.trace("Alias event dropped - user opted out", category: .events)
             return
         }
 
-        SDKLogger.debug("Aliasing user: \(previousId) -> \(userId)", category: .events)
+        SDKLogger.info("Aliasing user: \(previousId) -> \(userId)", category: .events)
 
         // If ready, process immediately
         if isReady {
@@ -584,7 +584,7 @@ public class UserCanal {
 
         // Note: Device context now handled by SessionManager
 
-        SDKLogger.debug("Session started for user: \(getCurrentUserID())", category: .events)
+        SDKLogger.info("Session started for user: \(getCurrentUserID())", category: .events)
     }
 
     private func sendDeviceContextIfNeeded() {
@@ -694,7 +694,7 @@ public class UserCanal {
 
         guard !eventsToProcess.isEmpty else { return }
 
-        SDKLogger.debug("Processing \(eventsToProcess.count) queued events", category: .events)
+        SDKLogger.trace("Processing \(eventsToProcess.count) queued events", category: .events)
 
         for event in eventsToProcess {
             switch event {
@@ -733,7 +733,7 @@ public class UserCanal {
                 currentUserID = userID
                 ensureSessionStarted()
                 await client?.eventIdentify(userID: userID, traits: traits)
-                SDKLogger.debug("User identified: \(userID)", category: .events)
+                SDKLogger.trace("User identified: \(userID)", category: .events)
 
             case .group(let groupID, let properties):
                 // Process group event
@@ -748,11 +748,11 @@ public class UserCanal {
                 // Process alias event
                 ensureSessionStarted()
                 await client?.eventAlias(previousId: previousId, userId: userId)
-                SDKLogger.debug("User aliased: \(previousId) -> \(userId)", category: .events)
+                SDKLogger.trace("User aliased: \(previousId) -> \(userId)", category: .events)
             }
         }
 
-        SDKLogger.debug("Finished processing queued events", category: .events)
+        SDKLogger.trace("Finished processing queued events", category: .events)
     }
 }
 

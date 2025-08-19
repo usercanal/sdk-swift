@@ -293,7 +293,7 @@ public actor NetworkClient {
         stats.setLastSendTime(Date())
         lastSuccessTime = Date()
 
-        SDKLogger.debug("Batch transmission confirmed: \(frameSize) bytes", category: .network)
+        SDKLogger.trace("Batch transmission confirmed: \(frameSize) bytes", category: .network)
         // Batch sent details are logged by BatchManager with item counts
     }
 
