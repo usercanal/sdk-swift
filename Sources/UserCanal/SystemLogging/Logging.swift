@@ -15,11 +15,37 @@ public actor SDKLogger {
 
     // MARK: - Configuration
 
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var _isDebugEnabled: Bool = false
+    private nonisolated(unsafe) static var _logLevel: SystemLogLevel = .info
+
     /// Whether debug logging is enabled
-    public static var isDebugEnabled: Bool = false
+    public static var isDebugEnabled: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _isDebugEnabled
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _isDebugEnabled = newValue
+        }
+    }
 
     /// Current log level threshold
-    public static var logLevel: SystemLogLevel = .info
+    public static var logLevel: SystemLogLevel {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _logLevel
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _logLevel = newValue
+        }
+    }
 
     // MARK: - Log Categories
 
