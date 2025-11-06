@@ -2,6 +2,10 @@
 // swiftlint:disable all
 // swiftformat:disable all
 
+#if canImport(Common)
+import Common
+#endif
+
 import FlatBuffers
 
 ///  Event types for different processing paths
@@ -36,7 +40,7 @@ public enum schema_event_EventType: UInt8, Enum, Verifiable {
 ///  Field IDs ensure forward compatibility and optimal memory layout
 public struct schema_event_Event: FlatBufferObject, Verifiable {
 
-  static func validateVersion() { FlatBuffersVersion_25_2_10() }
+  static func validateVersion() { FlatBuffersVersion_25_9_23() }
   public var __buffer: ByteBuffer! { return _accessor.bb }
   private var _accessor: Table
 
@@ -60,16 +64,19 @@ public struct schema_event_Event: FlatBufferObject, Verifiable {
   public var deviceIdCount: Int32 { let o = _accessor.offset(VTOFFSET.deviceId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func deviceId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.deviceId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var deviceId: [UInt8] { return _accessor.getVector(at: VTOFFSET.deviceId.v) ?? [] }
+  public func withUnsafePointerToDeviceId<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.deviceId.v, body: body) }
   public var hasSessionId: Bool { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? false : true }
   public var sessionIdCount: Int32 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func sessionId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var sessionId: [UInt8] { return _accessor.getVector(at: VTOFFSET.sessionId.v) ?? [] }
+  public func withUnsafePointerToSessionId<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.sessionId.v, body: body) }
   public var eventName: String? { let o = _accessor.offset(VTOFFSET.eventName.v); return o == 0 ? nil : _accessor.string(at: o) }
   public var eventNameSegmentArray: [UInt8]? { return _accessor.getVector(at: VTOFFSET.eventName.v) }
   public var hasPayload: Bool { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? false : true }
   public var payloadCount: Int32 { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func payload(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var payload: [UInt8] { return _accessor.getVector(at: VTOFFSET.payload.v) ?? [] }
+  public func withUnsafePointerToPayload<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.payload.v, body: body) }
   public static func startEvent(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 6) }
   public static func add(eventType: schema_event_EventType, _ fbb: inout FlatBufferBuilder) { fbb.add(element: eventType.rawValue, def: 0, at: VTOFFSET.eventType.p) }
   public static func add(timestamp: UInt64, _ fbb: inout FlatBufferBuilder) { fbb.add(element: timestamp, def: 0, at: VTOFFSET.timestamp.p) }
@@ -113,7 +120,7 @@ public struct schema_event_Event: FlatBufferObject, Verifiable {
 ///  Contains batched events for efficient network transport
 public struct schema_event_EventData: FlatBufferObject, Verifiable {
 
-  static func validateVersion() { FlatBuffersVersion_25_2_10() }
+  static func validateVersion() { FlatBuffersVersion_25_9_23() }
   public var __buffer: ByteBuffer! { return _accessor.bb }
   private var _accessor: Table
 

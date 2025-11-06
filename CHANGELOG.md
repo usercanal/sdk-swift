@@ -1,6 +1,13 @@
 # Changelog
 
-## January 14, 2025
+## [1.1.5] - August 20, 2025
+Xcode 26 / Swift 6 Compatibility
+
+- fix: Upgraded FlatBuffers dependency to 25.9.23 for Swift 6 compatibility
+- fix: Regenerated FlatBuffers code with proper module imports
+- fix: Fixed concurrency safety warnings in SDKLogger using `nonisolated(unsafe)` with NSLock
+
+## August 14, 2025
 CONTEXT Events Optimization
 
 - fix: Removed excessive CONTEXT events for app active/inactive transitions

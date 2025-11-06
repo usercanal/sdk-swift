@@ -2,6 +2,10 @@
 // swiftlint:disable all
 // swiftformat:disable all
 
+#if canImport(Common)
+import Common
+#endif
+
 import FlatBuffers
 
 ///  Log severity levels (RFC 5424 syslog standard + TRACE)
@@ -41,7 +45,7 @@ public enum schema_log_LogEventType: UInt8, Enum, Verifiable {
 ///  Single log entry - field order preserved for compatibility
 public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
 
-  static func validateVersion() { FlatBuffersVersion_25_2_10() }
+  static func validateVersion() { FlatBuffersVersion_25_9_23() }
   public var __buffer: ByteBuffer! { return _accessor.bb }
   private var _accessor: Table
 
@@ -65,6 +69,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   public var sessionIdCount: Int32 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func sessionId(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.sessionId.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var sessionId: [UInt8] { return _accessor.getVector(at: VTOFFSET.sessionId.v) ?? [] }
+  public func withUnsafePointerToSessionId<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.sessionId.v, body: body) }
   public var level: schema_log_LogLevel { let o = _accessor.offset(VTOFFSET.level.v); return o == 0 ? .emergency : schema_log_LogLevel(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .emergency }
   public var timestamp: UInt64 { let o = _accessor.offset(VTOFFSET.timestamp.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
   public var source: String? { let o = _accessor.offset(VTOFFSET.source.v); return o == 0 ? nil : _accessor.string(at: o) }
@@ -75,6 +80,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
   public var payloadCount: Int32 { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func payload(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.payload.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var payload: [UInt8] { return _accessor.getVector(at: VTOFFSET.payload.v) ?? [] }
+  public func withUnsafePointerToPayload<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.payload.v, body: body) }
   public static func startLogEntry(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 7) }
   public static func add(eventType: schema_log_LogEventType, _ fbb: inout FlatBufferBuilder) { fbb.add(element: eventType.rawValue, def: 0, at: VTOFFSET.eventType.p) }
   public static func addVectorOf(sessionId: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: sessionId, at: VTOFFSET.sessionId.p) }
@@ -120,7 +126,7 @@ public struct schema_log_LogEntry: FlatBufferObject, Verifiable {
 
 public struct schema_log_LogData: FlatBufferObject, Verifiable {
 
-  static func validateVersion() { FlatBuffersVersion_25_2_10() }
+  static func validateVersion() { FlatBuffersVersion_25_9_23() }
   public var __buffer: ByteBuffer! { return _accessor.bb }
   private var _accessor: Table
 

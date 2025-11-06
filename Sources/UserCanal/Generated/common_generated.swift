@@ -2,6 +2,10 @@
 // swiftlint:disable all
 // swiftformat:disable all
 
+#if canImport(Common)
+import Common
+#endif
+
 import FlatBuffers
 
 ///  Schema types for routing and streaming
@@ -34,7 +38,7 @@ public enum schema_common_SchemaType: UInt8, Enum, Verifiable {
 ///  Field IDs ensure forward compatibility and allow optimal field ordering
 public struct schema_common_Batch: FlatBufferObject, Verifiable {
 
-  static func validateVersion() { FlatBuffersVersion_25_2_10() }
+  static func validateVersion() { FlatBuffersVersion_25_9_23() }
   public var __buffer: ByteBuffer! { return _accessor.bb }
   private var _accessor: Table
 
@@ -55,6 +59,7 @@ public struct schema_common_Batch: FlatBufferObject, Verifiable {
   public var apiKeyCount: Int32 { let o = _accessor.offset(VTOFFSET.apiKey.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func apiKey(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.apiKey.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var apiKey: [UInt8] { return _accessor.getVector(at: VTOFFSET.apiKey.v) ?? [] }
+  public func withUnsafePointerToApiKey<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.apiKey.v, body: body) }
   public var schemaType: schema_common_SchemaType { let o = _accessor.offset(VTOFFSET.schemaType.v); return o == 0 ? .unknown : schema_common_SchemaType(rawValue: _accessor.readBuffer(of: UInt8.self, at: o)) ?? .unknown }
   public var version: UInt8 { let o = _accessor.offset(VTOFFSET.version.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt8.self, at: o) }
   public var batchId: UInt64 { let o = _accessor.offset(VTOFFSET.batchId.v); return o == 0 ? 0 : _accessor.readBuffer(of: UInt64.self, at: o) }
@@ -62,6 +67,7 @@ public struct schema_common_Batch: FlatBufferObject, Verifiable {
   public var dataCount: Int32 { let o = _accessor.offset(VTOFFSET.data.v); return o == 0 ? 0 : _accessor.vector(count: o) }
   public func data(at index: Int32) -> UInt8 { let o = _accessor.offset(VTOFFSET.data.v); return o == 0 ? 0 : _accessor.directRead(of: UInt8.self, offset: _accessor.vector(at: o) + index * 1) }
   public var data: [UInt8] { return _accessor.getVector(at: VTOFFSET.data.v) ?? [] }
+  public func withUnsafePointerToData<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T? { return try _accessor.withUnsafePointerToSlice(at: VTOFFSET.data.v, body: body) }
   public static func startBatch(_ fbb: inout FlatBufferBuilder) -> UOffset { fbb.startTable(with: 5) }
   public static func addVectorOf(apiKey: Offset, _ fbb: inout FlatBufferBuilder) { fbb.add(offset: apiKey, at: VTOFFSET.apiKey.p) }
   public static func add(schemaType: schema_common_SchemaType, _ fbb: inout FlatBufferBuilder) { fbb.add(element: schemaType.rawValue, def: 0, at: VTOFFSET.schemaType.p) }
